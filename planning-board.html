@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Dynamic OSM World Domination Game Planning Board</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f2;
+      --ink: #17202a;
+      --muted: #5c6875;
+      --line: #d8ded8;
+      --panel: #ffffff;
+      --green: #1f8a70;
+      --blue: #2f6fbd;
+      --red: #b84a4a;
+      --gold: #c58a1a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 32px;
+      letter-spacing: 0;
+    }
+    .subtitle {
+      margin: 0 0 24px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.5;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: 0 10px 26px rgba(23, 32, 42, 0.08);
+    }
+    .map {
+      min-height: 520px;
+      position: relative;
+      overflow: hidden;
+      background:
+        linear-gradient(34deg, rgba(31,138,112,.14), transparent 34%),
+        linear-gradient(138deg, rgba(47,111,189,.12), transparent 38%),
+        #ecf1ea;
+    }
+    .route, .border {
+      position: absolute;
+      border: 2px solid rgba(23, 32, 42, .18);
+      border-radius: 999px;
+      transform: rotate(var(--r));
+    }
+    .route { border-color: rgba(47,111,189,.38); }
+    .water {
+      position: absolute;
+      left: 260px;
+      top: 42px;
+      width: 132px;
+      height: 438px;
+      background: rgba(47,111,189,.18);
+      border: 2px solid rgba(47,111,189,.38);
+      border-radius: 48% 52% 44% 56%;
+      transform: rotate(8deg);
+    }
+    .mountain {
+      position: absolute;
+      width: 0;
+      height: 0;
+      border-left: 26px solid transparent;
+      border-right: 26px solid transparent;
+      border-bottom: 58px solid rgba(92,104,117,.34);
+    }
+    .transport {
+      position: absolute;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #17202a;
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      box-shadow: 0 6px 14px rgba(23,32,42,.18);
+    }
+    .territory {
+      position: absolute;
+      min-width: 116px;
+      padding: 10px 12px;
+      background: rgba(255,255,255,.9);
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 8px 18px rgba(23,32,42,.10);
+    }
+    .territory strong { display: block; font-size: 14px; }
+    .territory span { color: var(--muted); font-size: 12px; }
+    .t1 { top: 54px; left: 58px; border-color: var(--green); }
+    .t2 { top: 120px; right: 90px; border-color: var(--blue); }
+    .t3 { top: 250px; left: 190px; border-color: var(--gold); }
+    .t4 { right: 52px; bottom: 96px; border-color: var(--red); }
+    .t5 { left: 60px; bottom: 70px; border-color: #5965a8; }
+    .unit {
+      display: inline-flex;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 12px;
+      margin-top: 8px;
+      background: var(--green);
+    }
+    .t2 .unit { background: var(--blue); }
+    .t3 .unit { background: var(--gold); }
+    .t4 .unit { background: var(--red); }
+    .t5 .unit { background: #5965a8; }
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .legend div {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fbfcfa;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .stack {
+      display: grid;
+      gap: 14px;
+    }
+    .leaderboard {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .leader {
+      display: grid;
+      grid-template-columns: 86px 1fr 46px 54px;
+      gap: 8px;
+      align-items: center;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .bar {
+      height: 10px;
+      border-radius: 999px;
+      background: #e5e9e4;
+      overflow: hidden;
+    }
+    .fill {
+      height: 100%;
+      width: var(--w);
+      background: var(--green);
+    }
+    .leader:nth-child(2) .fill { background: var(--blue); }
+    .leader:nth-child(3) .fill { background: var(--gold); }
+    .leader:nth-child(4) .fill { background: var(--red); }
+    .pillar {
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--green);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcfa;
+    }
+    .pillar:nth-child(2) { border-left-color: var(--blue); }
+    .pillar:nth-child(3) { border-left-color: var(--gold); }
+    .pillar:nth-child(4) { border-left-color: var(--red); }
+    .pillar h2 {
+      margin: 0 0 6px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+    .pillar p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 14px;
+    }
+    .question {
+      margin-top: 18px;
+      background: #17202a;
+      color: white;
+      border-radius: 8px;
+      padding: 18px;
+    }
+    .question h2 { margin: 0 0 10px; font-size: 20px; }
+    .choices {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .choice {
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 8px;
+      padding: 12px;
+      background: rgba(255,255,255,.08);
+    }
+    .choice strong { display: block; margin-bottom: 4px; }
+    .choice span { color: rgba(255,255,255,.78); font-size: 13px; line-height: 1.35; }
+    .ui-preview {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 260px 1fr 260px;
+      min-height: 520px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #dde8df;
+      box-shadow: 0 10px 26px rgba(23, 32, 42, 0.08);
+    }
+    .ui-side {
+      background: rgba(255,255,255,.94);
+      border-right: 1px solid var(--line);
+      padding: 14px;
+      display: grid;
+      align-content: start;
+      gap: 12px;
+    }
+    .ui-side.right {
+      border-right: 0;
+      border-left: 1px solid var(--line);
+    }
+    .ui-map {
+      position: relative;
+      overflow: hidden;
+      background:
+        linear-gradient(28deg, rgba(31,138,112,.18), transparent 35%),
+        linear-gradient(140deg, rgba(47,111,189,.16), transparent 42%),
+        #eef3eb;
+    }
+    .ui-topbar {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      top: 14px;
+      height: 44px;
+      border-radius: 8px;
+      background: rgba(255,255,255,.94);
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .ui-map .territory {
+      min-width: 100px;
+      transform: scale(.88);
+    }
+    .ui-route {
+      position: absolute;
+      width: 300px;
+      height: 48px;
+      left: 150px;
+      top: 260px;
+      border: 3px dashed rgba(23,32,42,.45);
+      border-radius: 999px;
+      transform: rotate(-10deg);
+    }
+    .ui-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fbfcfa;
+    }
+    .ui-card h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 4px 0;
+      border-bottom: 1px solid #edf0ed;
+    }
+    .stat-row:last-child { border-bottom: 0; }
+    .command {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .cmd-btn {
+      border: 0;
+      border-radius: 6px;
+      background: #17202a;
+      color: white;
+      padding: 7px 9px;
+      font: inherit;
+    }
+    @media (max-width: 860px) {
+      .ui-preview { grid-template-columns: 1fr; }
+      .ui-side.right { border-left: 0; border-top: 1px solid var(--line); }
+      .ui-map { min-height: 440px; }
+    }
+    @media (max-width: 860px) {
+      main { padding: 18px; }
+      .board, .choices, .legend { grid-template-columns: 1fr; }
+      .map { min-height: 460px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Dynamic OSM World Domination Game</h1>
+    <p class="subtitle">A real-time multiplayer strategic simulation using OpenStreetMap as the visible world. Random territory overlays sit on top of real map features, while humans and NPC factions fight continuously for valuable places.</p>
+
+    <div class="board">
+      <section class="panel map" aria-label="Map concept">
+        <div class="border" style="width:360px;height:150px;left:80px;top:80px;--r:-12deg"></div>
+        <div class="border" style="width:330px;height:170px;right:70px;bottom:86px;--r:18deg"></div>
+        <div class="water" aria-hidden="true"></div>
+        <div class="mountain" style="left:70px;top:260px" aria-hidden="true"></div>
+        <div class="mountain" style="left:112px;top:282px" aria-hidden="true"></div>
+        <div class="route" style="width:520px;height:80px;left:110px;top:232px;--r:10deg"></div>
+        <div class="route" style="width:420px;height:54px;left:70px;top:330px;--r:-18deg"></div>
+        <div class="route" style="width:260px;height:42px;right:82px;top:128px;--r:-6deg;border-color:rgba(197,138,26,.55)"></div>
+        <div class="transport" style="right:118px;top:138px" title="Airport">AIR</div>
+        <div class="transport" style="right:84px;bottom:126px" title="Port">SEA</div>
+        <div class="transport" style="left:224px;top:222px;background:#c58a1a" title="Rail">RAIL</div>
+        <div class="territory t1"><strong>Neutral Zone</strong><span>Value from schools/services</span><div class="unit">0</div></div>
+        <div class="territory t2"><strong>Neutral Resources</strong><span>Industrial + supply output</span><div class="unit">0</div></div>
+        <div class="territory t3"><strong>Your Small Start</strong><span>Chosen HQ, grows outward</span><div class="unit">1</div></div>
+        <div class="territory t4"><strong>Neutral Corridor</strong><span>Roads improve attack flow</span><div class="unit">0</div></div>
+        <div class="territory t5"><strong>NPC Small Start</strong><span>Evenly spread seed</span><div class="unit">1</div></div>
+        <div class="territory" style="top:210px;right:210px;border-color:#17202a">
+          <strong>Moving Army</strong><span>ETA applies to road, rail, air, and sea</span><div class="unit" style="background:#17202a">3</div>
+        </div>
+      </section>
+
+      <aside class="panel stack">
+        <div class="pillar">
+          <h2>1. Map As Board</h2>
+          <p>Use OSM tiles visually, with generated territory polygons overlaid on top. Real features drive economy, defense, mobility, and strategic value.</p>
+        </div>
+        <div class="pillar">
+          <h2>2. Dynamic Conflict</h2>
+          <p>Start with visible army movement. Road, rail, air, and sea routes all use ETAs; faster infrastructure lowers travel time but never makes movement instant.</p>
+        </div>
+        <div class="pillar">
+          <h2>3. Humans + NPCs</h2>
+          <p>Humans and NPCs all start small, grow by capture, and can permanently eliminate each other. Humans choose any start; NPC starts are evenly spread.</p>
+        </div>
+        <div class="pillar">
+          <h2>4. Territory Stats</h2>
+          <p>Factories and shops raise economy. Castles, military sites, and government buildings raise defense. Roads, rail, airports, and ports raise mobility.</p>
+        </div>
+        <div class="pillar">
+          <h2>5. Map Control Leaderboard</h2>
+          <p>Rank factions by percentage of total map area controlled. The primary win condition is 100% control. Eliminated players are permanent knockouts.</p>
+          <div class="leaderboard">
+            <div class="leader"><strong>You</strong><div class="bar"><div class="fill" style="--w:18%"></div></div><span>18%</span><span>2 elim</span></div>
+            <div class="leader"><strong>NPC-1</strong><div class="bar"><div class="fill" style="--w:14%"></div></div><span>14%</span><span>1 elim</span></div>
+            <div class="leader"><strong>NPC-2</strong><div class="bar"><div class="fill" style="--w:9%"></div></div><span>9%</span><span>0 elim</span></div>
+            <div class="leader"><strong>Human-2</strong><div class="bar"><div class="fill" style="--w:0%"></div></div><span>0%</span><span>out</span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="question">
+      <h2>Updated Design Direction</h2>
+      <p>We are now planning a continuous strategy simulation rather than a classic turn-based Risk clone.</p>
+      <div class="choices">
+        <div class="choice"><strong>Army Movement First</strong><span>Players select armies and send them to adjacent or connected territories with visible travel timers.</span></div>
+        <div class="choice"><strong>Transport Networks</strong><span>Roads, rail, bridges, tunnels, airports, and ports all affect where and how fast armies can move.</span></div>
+        <div class="choice"><strong>Permanent Elimination</strong><span>Human and NPC factions can eliminate each other; the final captor gets leaderboard credit.</span></div>
+      </div>
+    </section>
+
+    <section class="ui-preview" aria-label="UI concept preview">
+      <aside class="ui-side">
+        <div class="ui-card">
+          <h3>Selected Territory</h3>
+          <div class="stat-row"><span>Economy</span><strong>74</strong></div>
+          <div class="stat-row"><span>Defense</span><strong>58</strong></div>
+          <div class="stat-row"><span>Mobility</span><strong>82</strong></div>
+          <div class="stat-row"><span>Value</span><strong>77</strong></div>
+        </div>
+        <div class="ui-card">
+          <h3>Army</h3>
+          <div class="command"><span>Strength 100</span><button class="cmd-btn">Move</button></div>
+          <div class="stat-row"><span>Route</span><strong>Rail</strong></div>
+          <div class="stat-row"><span>ETA</span><strong>01:24</strong></div>
+        </div>
+        <div class="ui-card">
+          <h3>Events</h3>
+          <div class="stat-row"><span>NPC-1 attacked</span><strong>00:12</strong></div>
+          <div class="stat-row"><span>Port captured</span><strong>01:08</strong></div>
+        </div>
+      </aside>
+      <div class="ui-map">
+        <div class="ui-topbar"><strong>Cardiff Match</strong><span>Map control target: 100%</span></div>
+        <div class="ui-route"></div>
+        <div class="territory t1"><strong>Neutral</strong><span>Economy 62</span><div class="unit">0</div></div>
+        <div class="territory t2"><strong>NPC-1</strong><span>Incoming</span><div class="unit">86</div></div>
+        <div class="territory t3"><strong>Your HQ</strong><span>Selected</span><div class="unit">100</div></div>
+        <div class="territory t4"><strong>Rail Hub</strong><span>ETA 01:24</span><div class="unit">32</div></div>
+        <div class="territory t5"><strong>Port Zone</strong><span>Sea route</span><div class="unit">45</div></div>
+      </div>
+      <aside class="ui-side right">
+        <div class="ui-card">
+          <h3>Leaderboard</h3>
+          <div class="leaderboard">
+            <div class="leader"><strong>You</strong><div class="bar"><div class="fill" style="--w:18%"></div></div><span>18%</span><span>2 elim</span></div>
+            <div class="leader"><strong>NPC-1</strong><div class="bar"><div class="fill" style="--w:14%"></div></div><span>14%</span><span>1 elim</span></div>
+            <div class="leader"><strong>NPC-2</strong><div class="bar"><div class="fill" style="--w:9%"></div></div><span>9%</span><span>0 elim</span></div>
+          </div>
+        </div>
+        <div class="ui-card">
+          <h3>Battle</h3>
+          <div class="stat-row"><span>Target</span><strong>Rail Hub</strong></div>
+          <div class="stat-row"><span>Attack pos.</span><strong>71</strong></div>
+          <div class="stat-row"><span>Defense pos.</span><strong>64</strong></div>
+        </div>
+        <div class="ui-card">
+          <h3>Match</h3>
+          <div class="stat-row"><span>Territories</span><strong>100</strong></div>
+          <div class="stat-row"><span>Players</span><strong>2 + 6 NPC</strong></div>
+        </div>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>
