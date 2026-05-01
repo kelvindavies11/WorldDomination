@@ -27,3 +27,19 @@ Then open:
 ```text
 http://localhost:5057/api/prototype/cardiff
 ```
+
+## Run UI
+
+The API serves the working lobby-first UI from `src/Game.Api/wwwroot`.
+
+```powershell
+dotnet run --project src/Game.Api/Game.Api.csproj --urls http://localhost:5057
+```
+
+Then open the available games list:
+
+```text
+http://localhost:5057/games
+```
+
+`src/Game.Web` contains the planned Vite/React package boundary for the next frontend iteration. This environment currently has `node.exe` but no `npm`, so the checked-in working UI is dependency-free static browser code served by ASP.NET Core.

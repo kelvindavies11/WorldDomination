@@ -1,0 +1,8 @@
+@import url("../../Game.Api/wwwroot/styles.css");
+
+.link-button {
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  padding: 0;
+}
