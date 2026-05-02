@@ -1,8 +1,8 @@
-# Backend Prototype Slice Implementation Plan
+# Backend Match Slice Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the first tested backend prototype for the Dynamic OSM World Domination game.
+**Goal:** Build the first tested backend match for the Dynamic OSM World Domination game.
 
 **Architecture:** Create a .NET 10 clean architecture solution with pure domain rules in `Game.Domain`, use-case orchestration in `Game.Application`, a thin Minimal API in `Game.Api`, and automated tests in `Game.Tests`. This first slice uses deterministic in-memory/generated Cardiff-style data so the core loop can be exercised before OSM ingestion, MySQL, SignalR, and the React client are added.
 
@@ -22,14 +22,14 @@
 - `src/Game.Domain/MovementCalculator.cs`: ETA and blocked-route behavior.
 - `src/Game.Domain/CombatCalculator.cs`: battle power and deterministic combat result behavior.
 - `src/Game.Domain/MapControlCalculator.cs`: area-based leaderboard and victory calculations.
-- `src/Game.Application/Game.Application.csproj`: prototype orchestration project.
-- `src/Game.Application/PrototypeMatchService.cs`: creates a deterministic Cardiff prototype match snapshot.
-- `src/Game.Application/PrototypeDtos.cs`: API-facing DTOs for prototype state.
+- `src/Game.Application/Game.Application.csproj`: match orchestration project.
+- `src/Game.Application/MatchMatchService.cs`: creates a deterministic Cardiff match match snapshot.
+- `src/Game.Application/MatchDtos.cs`: API-facing DTOs for match state.
 - `src/Game.Api/Game.Api.csproj`: Minimal API host.
-- `src/Game.Api/Program.cs`: maps prototype endpoints.
+- `src/Game.Api/Program.cs`: maps match endpoints.
 - `tests/Game.Tests/Game.Tests.csproj`: xUnit tests.
 - `tests/Game.Tests/Domain/*.cs`: domain formula tests.
-- `tests/Game.Tests/Application/*.cs`: prototype match tests.
+- `tests/Game.Tests/Application/*.cs`: match match tests.
 - `tests/Game.Tests/Api/*.cs`: API endpoint tests.
 
 ## Task 1: Solution Skeleton
@@ -229,7 +229,7 @@ Expected: fails because combat types do not exist.
 
 - [ ] **Step 3: Implement minimal combat calculation**
 
-Implement effective attacker and defender strength exactly from `docs/game-rules.md`; omit random battle factor in this deterministic prototype slice.
+Implement effective attacker and defender strength exactly from `docs/game-rules.md`; omit random battle factor in this deterministic match slice.
 
 - [ ] **Step 4: Write failing map-control tests**
 
@@ -259,12 +259,12 @@ dotnet test tests/Game.Tests/Game.Tests.csproj --filter "CombatCalculatorTests|M
 
 Expected: all combat and map-control tests pass.
 
-## Task 5: Prototype Match Service
+## Task 5: Match Match Service
 
 **Files:**
-- Create: `tests/Game.Tests/Application/PrototypeMatchServiceTests.cs`
-- Create: `src/Game.Application/PrototypeDtos.cs`
-- Create: `src/Game.Application/PrototypeMatchService.cs`
+- Create: `tests/Game.Tests/Application/MatchMatchServiceTests.cs`
+- Create: `src/Game.Application/MatchDtos.cs`
+- Create: `src/Game.Application/MatchMatchService.cs`
 
 - [ ] **Step 1: Write failing tests**
 
@@ -275,55 +275,55 @@ Cover deterministic Cardiff defaults: 100 territories, 2 human factions, 6 NPC f
 Run:
 
 ```powershell
-dotnet test tests/Game.Tests/Game.Tests.csproj --filter PrototypeMatchServiceTests
+dotnet test tests/Game.Tests/Game.Tests.csproj --filter MatchMatchServiceTests
 ```
 
 Expected: fails because application service types do not exist.
 
 - [ ] **Step 3: Implement minimal service**
 
-Generate deterministic prototype data in memory and call domain calculators for stats and leaderboard output.
+Generate deterministic match data in memory and call domain calculators for stats and leaderboard output.
 
 - [ ] **Step 4: Run green**
 
 Run:
 
 ```powershell
-dotnet test tests/Game.Tests/Game.Tests.csproj --filter PrototypeMatchServiceTests
+dotnet test tests/Game.Tests/Game.Tests.csproj --filter MatchMatchServiceTests
 ```
 
-Expected: prototype match tests pass.
+Expected: match match tests pass.
 
-## Task 6: Minimal API Prototype Endpoint
+## Task 6: Minimal API Match Endpoint
 
 **Files:**
-- Create: `tests/Game.Tests/Api/PrototypeApiTests.cs`
+- Create: `tests/Game.Tests/Api/MatchApiTests.cs`
 - Modify: `src/Game.Api/Program.cs`
 
 - [ ] **Step 1: Write failing API test**
 
-Use `WebApplicationFactory<Program>` to assert `GET /api/prototype/cardiff` returns a match snapshot with Cardiff defaults.
+Use `WebApplicationFactory<Program>` to assert `GET /api/matches/cardiff` returns a match snapshot with Cardiff defaults.
 
 - [ ] **Step 2: Run red**
 
 Run:
 
 ```powershell
-dotnet test tests/Game.Tests/Game.Tests.csproj --filter PrototypeApiTests
+dotnet test tests/Game.Tests/Game.Tests.csproj --filter MatchApiTests
 ```
 
 Expected: fails because the endpoint is not mapped.
 
 - [ ] **Step 3: Implement endpoint**
 
-Register `PrototypeMatchService` and map `GET /api/prototype/cardiff`.
+Register `MatchMatchService` and map `GET /api/matches/cardiff`.
 
 - [ ] **Step 4: Run green**
 
 Run:
 
 ```powershell
-dotnet test tests/Game.Tests/Game.Tests.csproj --filter PrototypeApiTests
+dotnet test tests/Game.Tests/Game.Tests.csproj --filter MatchApiTests
 ```
 
 Expected: API test passes.
@@ -344,4 +344,4 @@ Expected: all tests pass with exit code 0.
 - No OSM ingestion yet.
 - No SignalR realtime channel yet.
 - No React/MapLibre client yet because Node/npm are not currently usable in this environment.
-- No real territory polygon generation yet; prototype uses deterministic in-memory territory summaries.
+- No real territory polygon generation yet; match uses deterministic in-memory territory summaries.

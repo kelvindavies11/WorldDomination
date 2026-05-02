@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a working lobby-first React UI on top of the existing Cardiff prototype API and serve it from the ASP.NET Core API.
+**Goal:** Build a working lobby-first React UI on top of the existing Cardiff match API and serve it from the ASP.NET Core API.
 
 **Architecture:** Add a focused Vite/React frontend in `src/Game.Web` with a typed API client and small view-model helpers. Update `Game.Api` only for static frontend delivery and SPA fallback routing; game data remains owned by the existing application service and API endpoint.
 
@@ -16,18 +16,18 @@
 - Create `src/Game.Web/index.html`: Vite HTML entry.
 - Create `src/Game.Web/src/main.tsx`: React app bootstrap.
 - Create `src/Game.Web/src/App.tsx`: route selection and page composition.
-- Create `src/Game.Web/src/api/prototype.ts`: typed DTOs and fetch client for `/api/prototype/cardiff`.
+- Create `src/Game.Web/src/api/match.ts`: typed DTOs and fetch client for `/api/matches/cardiff`.
 - Create `src/Game.Web/src/features/lobby/lobbyModel.ts`: pure derivation from snapshot to lobby model.
 - Create `src/Game.Web/src/features/lobby/lobbyModel.test.ts`: frontend unit coverage.
 - Create `src/Game.Web/src/styles.css`: command-map UI styling.
 - Modify `src/Game.Api/Program.cs`: serve static files, default files, and SPA fallback for non-API routes.
-- Modify `tests/Game.Tests/Api/PrototypeApiTests.cs`: add fallback/static behavior tests using temporary static web root.
+- Modify `tests/Game.Tests/Api/MatchApiTests.cs`: add fallback/static behavior tests using temporary static web root.
 - Modify `README.md`: add UI setup, build, and integrated run notes.
 
 ### Task 1: Backend SPA Fallback Tests
 
 **Files:**
-- Modify: `tests/Game.Tests/Api/PrototypeApiTests.cs`
+- Modify: `tests/Game.Tests/Api/MatchApiTests.cs`
 
 - [ ] **Step 1: Write failing API/static routing tests**
 
@@ -115,9 +115,9 @@ private sealed class StaticSiteFixture : IDisposable
 
 - [ ] **Step 2: Run tests and verify they fail**
 
-Run: `dotnet test tests/Game.Tests/Game.Tests.csproj --filter PrototypeApiTests`
+Run: `dotnet test tests/Game.Tests/Game.Tests.csproj --filter MatchApiTests`
 
-Expected: the new root/client-route tests fail because `Program.cs` still redirects `/` to `/api/prototype/cardiff` and has no SPA fallback.
+Expected: the new root/client-route tests fail because `Program.cs` still redirects `/` to `/api/matches/cardiff` and has no SPA fallback.
 
 ### Task 2: Backend Static Delivery
 
@@ -132,15 +132,15 @@ Replace the root redirect with static/default file handling and a non-API fallba
 using Game.Application;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddSingleton<PrototypeMatchService>();
+builder.Services.AddSingleton<MatchMatchService>();
 
 var app = builder.Build();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.MapGet("/api/prototype/cardiff", (PrototypeMatchService service) =>
-    Results.Ok(service.CreateCardiffPrototype()));
+app.MapGet("/api/matches/cardiff", (MatchMatchService service) =>
+    Results.Ok(service.CreateCardiffMatch()));
 
 app.MapFallback(context =>
 {
@@ -161,16 +161,16 @@ public partial class Program;
 
 - [ ] **Step 2: Run backend tests and verify they pass**
 
-Run: `dotnet test tests/Game.Tests/Game.Tests.csproj --filter PrototypeApiTests`
+Run: `dotnet test tests/Game.Tests/Game.Tests.csproj --filter MatchApiTests`
 
-Expected: all `PrototypeApiTests` pass.
+Expected: all `MatchApiTests` pass.
 
 ### Task 3: Frontend Scaffold And Model Tests
 
 **Files:**
 - Create: `src/Game.Web/package.json`
 - Create: `src/Game.Web/index.html`
-- Create: `src/Game.Web/src/api/prototype.ts`
+- Create: `src/Game.Web/src/api/match.ts`
 - Create: `src/Game.Web/src/features/lobby/lobbyModel.ts`
 - Create: `src/Game.Web/src/features/lobby/lobbyModel.test.ts`
 
@@ -207,10 +207,10 @@ Expected: all `PrototypeApiTests` pass.
 ```ts
 import { describe, expect, it } from "vitest";
 import { createLobbyModel } from "./lobbyModel";
-import type { PrototypeMatchSnapshot } from "../../api/prototype";
+import type { MatchMatchSnapshot } from "../../api/match";
 
-const snapshot: PrototypeMatchSnapshot = {
-  gameId: "cardiff-prototype",
+const snapshot: MatchMatchSnapshot = {
+  gameId: "cardiff-match",
   mapArea: "Cardiff",
   factions: [
     { id: "human-1", name: "Player 1", kind: "Human", color: "#1f8a70" },
@@ -260,7 +260,7 @@ Expected: tests fail because `createLobbyModel` does not exist.
 
 - [ ] **Step 4: Implement DTOs and lobby model**
 
-`prototype.ts`:
+`match.ts`:
 
 ```ts
 export type FactionKind = "Human" | "Npc";
@@ -272,14 +272,14 @@ export type TerritoryStats = {
   strategicValue: number;
 };
 
-export type PrototypeFaction = {
+export type MatchFaction = {
   id: string;
   name: string;
   kind: FactionKind;
   color: string;
 };
 
-export type PrototypeTerritory = {
+export type MatchTerritory = {
   id: string;
   index: number;
   name: string;
@@ -288,14 +288,14 @@ export type PrototypeTerritory = {
   stats: TerritoryStats;
 };
 
-export type PrototypeArmy = {
+export type MatchArmy = {
   id: string;
   factionId: string;
   territoryId: string;
   strength: number;
 };
 
-export type PrototypeRoute = {
+export type MatchRoute = {
   sourceTerritoryId: string;
   destinationTerritoryId: string;
   transport: string;
@@ -312,33 +312,33 @@ export type LeaderboardRow = {
   rank: number;
 };
 
-export type PrototypeMatchSnapshot = {
+export type MatchMatchSnapshot = {
   gameId: string;
   mapArea: string;
-  factions: PrototypeFaction[];
-  territories: PrototypeTerritory[];
-  armies: PrototypeArmy[];
-  routes: PrototypeRoute[];
+  factions: MatchFaction[];
+  territories: MatchTerritory[];
+  armies: MatchArmy[];
+  routes: MatchRoute[];
   leaderboard: LeaderboardRow[];
 };
 
-export async function fetchCardiffPrototype(signal?: AbortSignal): Promise<PrototypeMatchSnapshot> {
-  const response = await fetch("/api/prototype/cardiff", { signal });
+export async function fetchCardiffMatch(signal?: AbortSignal): Promise<MatchMatchSnapshot> {
+  const response = await fetch("/api/matches/cardiff", { signal });
 
   if (!response.ok) {
-    throw new Error(`Cardiff prototype request failed with ${response.status}`);
+    throw new Error(`Cardiff match request failed with ${response.status}`);
   }
 
-  return response.json() as Promise<PrototypeMatchSnapshot>;
+  return response.json() as Promise<MatchMatchSnapshot>;
 }
 ```
 
 `lobbyModel.ts`:
 
 ```ts
-import type { PrototypeMatchSnapshot } from "../../api/prototype";
+import type { MatchMatchSnapshot } from "../../api/match";
 
-export function createLobbyModel(snapshot: PrototypeMatchSnapshot) {
+export function createLobbyModel(snapshot: MatchMatchSnapshot) {
   const humanPlayers = snapshot.factions.filter(faction => faction.kind === "Human");
   const npcFactions = snapshot.factions.filter(faction => faction.kind === "Npc");
   const occupiedStarts = snapshot.territories.filter(territory => territory.ownerFactionId !== null).length;
@@ -377,7 +377,7 @@ Implement:
 
 - home dashboard
 - create game form with static defaults
-- lobby page that calls `fetchCardiffPrototype`
+- lobby page that calls `fetchCardiffMatch`
 - active match placeholder
 - route selection from `window.location.pathname`
 
@@ -461,7 +461,7 @@ Open:
 http://localhost:5057/games/cardiff/lobby
 ```
 
-Expected: lobby page renders, fetches Cardiff prototype data, and shows the lobby preview.
+Expected: lobby page renders, fetches Cardiff match data, and shows the lobby preview.
 
 ## Self-Review
 

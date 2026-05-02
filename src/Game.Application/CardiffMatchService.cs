@@ -2,10 +2,18 @@ using Game.Domain;
 
 namespace Game.Application;
 
-public sealed class PrototypeMatchService
+public sealed class CardiffMatchService
 {
-    public PrototypeMatchSnapshot CreateCardiffPrototype()
+    private readonly GameMapService mapService;
+
+    public CardiffMatchService(GameMapService mapService)
     {
+        this.mapService = mapService;
+    }
+
+    public MatchSnapshot CreateCardiffMatch()
+    {
+        var map = mapService.GetMap("cardiff");
         var factions = CreateFactions();
         var startIndexes = new Dictionary<string, int>
         {
@@ -23,7 +31,7 @@ public sealed class PrototypeMatchService
             .Select(index => CreateTerritory(index, factionByStartIndex.GetValueOrDefault(index)))
             .ToList();
         var armies = startIndexes
-            .Select(pair => new PrototypeArmyDto(
+            .Select(pair => new MatchArmyDto(
                 Id: $"army-{pair.Key}",
                 FactionId: pair.Key,
                 TerritoryId: $"territory-{pair.Value:000}",
@@ -40,9 +48,10 @@ public sealed class PrototypeMatchService
                 faction.Name,
                 EliminationCount: 0)).ToArray());
 
-        return new PrototypeMatchSnapshot(
-            GameId: "cardiff-prototype",
-            MapArea: "Cardiff",
+        return new MatchSnapshot(
+            GameId: "cardiff-match",
+            MapArea: map.Name,
+            Map: map,
             Factions: factions,
             Territories: territories,
             Armies: armies,
@@ -50,7 +59,7 @@ public sealed class PrototypeMatchService
             Leaderboard: leaderboard);
     }
 
-    private static IReadOnlyList<PrototypeFactionDto> CreateFactions() =>
+    private static IReadOnlyList<MatchFactionDto> CreateFactions() =>
     [
         new("human-1", "Player 1", FactionKind.Human, "#1f8a70"),
         new("human-2", "Player 2", FactionKind.Human, "#2f6fbd"),
@@ -62,7 +71,7 @@ public sealed class PrototypeMatchService
         new("npc-6", "NPC 6", FactionKind.Npc, "#8b5a2b")
     ];
 
-    private static PrototypeTerritoryDto CreateTerritory(int index, string? ownerFactionId)
+    private static MatchTerritoryDto CreateTerritory(int index, string? ownerFactionId)
     {
         var features = new TerritoryFeatureSummary(
             Factories: index % 6,
@@ -88,7 +97,7 @@ public sealed class PrototypeMatchService
             AreaSquareKm: 0.8 + index % 5 * 0.2,
             SpecialFeatures: index % 13 == 0 ? 2 : 0);
 
-        return new PrototypeTerritoryDto(
+        return new MatchTerritoryDto(
             Id: $"territory-{index:000}",
             Index: index,
             Name: $"Cardiff Sector {index + 1}",
@@ -97,7 +106,7 @@ public sealed class PrototypeMatchService
             Stats: TerritoryStatCalculator.Calculate(features, Ruleset.Default));
     }
 
-    private static IReadOnlyList<PrototypeRouteDto> CreateRoutes()
+    private static IReadOnlyList<MatchRouteDto> CreateRoutes()
     {
         return Enumerable.Range(0, 99)
             .Select(index =>
@@ -111,7 +120,7 @@ public sealed class PrototypeMatchService
                     Terrain: index % 8 == 0 ? RouteTerrain.Hills : RouteTerrain.Basic,
                     Barrier: index % 15 == 0 ? RouteBarrier.BridgeOrTunnel : RouteBarrier.None));
 
-                return new PrototypeRouteDto(
+                return new MatchRouteDto(
                     SourceTerritoryId: $"territory-{index:000}",
                     DestinationTerritoryId: $"territory-{index + 1:000}",
                     Transport: transport,

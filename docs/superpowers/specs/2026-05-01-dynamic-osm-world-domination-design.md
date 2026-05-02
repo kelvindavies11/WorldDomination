@@ -14,7 +14,7 @@ The technical architecture source is `docs/technical-architecture.md`. If this d
 
 The MVP includes:
 
-- one match played on Cardiff as the prototype map area
+- one match played on Cardiff as the match map area
 - OpenStreetMap visuals as the base map
 - random territory overlays of varied size
 - territory stats calculated from OSM features
@@ -32,7 +32,7 @@ The MVP includes:
 - live leaderboard by map-control percentage
 - 100% map-control victory
 
-Default prototype settings:
+Default match settings:
 
 - map area: Cardiff
 - territory count target: 80-120 territories, with 100 as the initial target
@@ -110,9 +110,9 @@ The data access layer should hide provider-specific spatial behavior behind repo
 FastAPI gateway layer:
 
 - A Python FastAPI service may be used as an edge API/BFF layer if needed.
-- FastAPI can expose client-facing HTTP endpoints, lightweight orchestration endpoints, admin/debug APIs, prototype endpoints, or AI/analytics-related endpoints.
+- FastAPI can expose client-facing HTTP endpoints, lightweight orchestration endpoints, admin/debug APIs, match endpoints, or AI/analytics-related endpoints.
 - FastAPI should use modular routers for larger application structure.
-- FastAPI may use WebSockets for prototype or auxiliary realtime flows, but the primary realtime game channel should remain ASP.NET Core SignalR unless explicitly changed.
+- FastAPI may use WebSockets for match or auxiliary realtime flows, but the primary realtime game channel should remain ASP.NET Core SignalR unless explicitly changed.
 - FastAPI must not own authoritative match state, combat resolution, movement validation, NPC behavior, eliminations, or victory checks.
 - FastAPI should call the .NET backend through HTTP/gRPC/message contracts or publish requests through a queue, depending on the final deployment shape.
 - FastAPI must be treated as an outer adapter. It must not import or duplicate game rules that belong in `Game.Domain`.

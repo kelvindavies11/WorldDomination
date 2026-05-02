@@ -121,7 +121,7 @@ Optional gateway:
 
 - Python FastAPI as an edge API/BFF layer when useful
 - FastAPI modular routers for larger application structure
-- FastAPI WebSockets only for prototype or auxiliary realtime flows
+- FastAPI WebSockets only for match or auxiliary realtime flows
 
 ## FastAPI Boundary
 
@@ -131,7 +131,7 @@ FastAPI can expose:
 
 - client-facing aggregation endpoints
 - admin/debug endpoints
-- prototype endpoints
+- match endpoints
 - AI or analytics endpoints
 - lightweight orchestration endpoints
 
@@ -459,7 +459,7 @@ Prefer open-source tools where practical. The following tools are the default ch
 | Backend runtime | .NET 10, ASP.NET Core | Authoritative game API, SignalR, Minimal APIs, hosted services |
 | Clean architecture | plain C# projects | `Game.Domain`, `Game.Application`, `Game.Infrastructure`, `Game.Api`, `Game.Tests` |
 | Realtime | ASP.NET Core SignalR | Primary live match event channel |
-| Optional gateway | FastAPI | Optional BFF/admin/prototype/AI/analytics layer |
+| Optional gateway | FastAPI | Optional BFF/admin/match/AI/analytics layer |
 | Database | MySQL 8.4 LTS or newer | Game persistence and spatial data |
 | EF provider | Pomelo.EntityFrameworkCore.MySql + MySqlConnector | EF Core access to MySQL using open-source .NET libraries |
 | Geometry | NetTopologySuite | C# geometry calculations and spatial value objects |

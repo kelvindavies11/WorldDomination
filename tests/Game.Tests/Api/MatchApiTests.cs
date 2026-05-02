@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Game.Tests.Api;
 
-public sealed class PrototypeApiTests
+public sealed class MatchApiTests
 {
     private static readonly JsonSerializerOptions ApiJsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -16,29 +16,32 @@ public sealed class PrototypeApiTests
     };
 
     [Fact]
-    public async Task CardiffPrototypeEndpointReturnsMatchSnapshot()
+    public async Task CardiffMatchEndpointReturnsMatchSnapshot()
     {
         await using var factory = new WebApplicationFactory<Program>();
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/api/prototype/cardiff");
-        var snapshot = await response.Content.ReadFromJsonAsync<PrototypeMatchSnapshot>(ApiJsonOptions);
+        var response = await client.GetAsync("/api/matches/cardiff");
+        var snapshot = await response.Content.ReadFromJsonAsync<MatchSnapshot>(ApiJsonOptions);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(snapshot);
-        Assert.Equal("cardiff-prototype", snapshot.GameId);
+        Assert.Equal("cardiff-match", snapshot.GameId);
         Assert.Equal("Cardiff", snapshot.MapArea);
+        Assert.Equal("Cardiff", snapshot.Map.Name);
+        Assert.Equal(13, snapshot.Map.BoundaryCoordinates.Count);
+        Assert.Equal(snapshot.Map.BoundaryCoordinates[0], snapshot.Map.BoundaryCoordinates[^1]);
         Assert.Equal(100, snapshot.Territories.Count);
         Assert.Equal(8, snapshot.Leaderboard.Count);
     }
 
     [Fact]
-    public async Task CardiffPrototypeEndpointReturnsStringFactionKindsForBrowserClients()
+    public async Task CardiffMatchEndpointReturnsStringFactionKindsForBrowserClients()
     {
         await using var factory = new WebApplicationFactory<Program>();
         using var client = factory.CreateClient();
 
-        var json = await client.GetStringAsync("/api/prototype/cardiff");
+        var json = await client.GetStringAsync("/api/matches/cardiff");
 
         Assert.Contains("\"kind\":\"Human\"", json);
         Assert.Contains("\"kind\":\"Npc\"", json);
@@ -115,13 +118,14 @@ public sealed class PrototypeApiTests
             "wwwroot",
             "app.js"));
 
-        Assert.Contains("MAP_DETAILS", appScript);
+        Assert.Contains("currentMapDetails", appScript);
         Assert.Contains("boundaryCoordinates", appScript);
         Assert.Contains("cameraBounds", appScript);
         Assert.Contains("maxBounds", appScript);
         Assert.Contains("out-of-bounds-mask", appScript);
         Assert.Contains("play-area-fill", appScript);
         Assert.Contains("play-area-outline", appScript);
+        Assert.DoesNotContain("const MAP_DETAILS", appScript);
         Assert.DoesNotContain("function playAreaBoundaryFeature(bounds)", appScript);
     }
 

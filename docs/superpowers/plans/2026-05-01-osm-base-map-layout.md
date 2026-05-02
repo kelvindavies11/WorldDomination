@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the first active match screen around a full-screen OSM base map for the Cardiff prototype.
+**Goal:** Build the first active match screen around a full-screen OSM base map for the Cardiff match.
 
 **Architecture:** Keep the implementation in the existing static frontend served by `Game.Api`. Load MapLibre in `index.html`, render the map-first match layout in `app.js`, and keep the dark theme, full-screen map, floating widgets, and responsive rules in `styles.css`.
 
@@ -13,7 +13,7 @@
 ### Task 1: Static Shell Test
 
 **Files:**
-- Modify: `tests/Game.Tests/Api/PrototypeApiTests.cs`
+- Modify: `tests/Game.Tests/Api/MatchApiTests.cs`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -21,7 +21,7 @@ Add a test that creates a temporary static web root containing an index shell wi
 
 - [ ] **Step 2: Run the focused test**
 
-Run: `dotnet test Game.sln --no-restore --filter FullyQualifiedName~PrototypeApiTests.CardiffMatchRouteReturnsFrontendShell`
+Run: `dotnet test Game.sln --no-restore --filter FullyQualifiedName~MatchApiTests.CardiffMatchRouteReturnsFrontendShell`
 
 Expected: fail before adding the test target or pass once the fallback behavior is confirmed.
 

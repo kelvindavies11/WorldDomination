@@ -15,30 +15,14 @@ const state = {
 let activeMap = null;
 let mapInitializedForPath = null;
 
-const MAP_DETAILS = {
-  cardiff: {
-    name: "Cardiff",
-    center: [-3.1791, 51.4816],
-    cameraBounds: [
-      [-3.3300, 51.4050],
-      [-3.0300, 51.5550]
-    ],
-    boundaryCoordinates: [
-      [-3.2820, 51.4300],
-      [-3.2450, 51.4175],
-      [-3.1960, 51.4120],
-      [-3.1410, 51.4210],
-      [-3.0910, 51.4440],
-      [-3.0620, 51.4800],
-      [-3.0740, 51.5150],
-      [-3.1180, 51.5410],
-      [-3.1810, 51.5480],
-      [-3.2360, 51.5360],
-      [-3.2860, 51.5060],
-      [-3.3110, 51.4650],
-      [-3.2820, 51.4300]
-    ]
-  }
+const FALLBACK_MAP_VIEW = {
+  name: "Cardiff",
+  center: [-3.1791, 51.4816],
+  cameraBounds: [
+    [-3.3300, 51.4050],
+    [-3.0300, 51.5550]
+  ],
+  boundaryCoordinates: []
 };
 
 const routes = {
@@ -171,7 +155,7 @@ function renderMatchPage() {
           <div class="map-overlay top-left">
             <span class="map-chip">OSM base</span>
             <span class="map-chip">Playing area</span>
-            <span class="map-chip" data-match-status>${state.matchLoading ? "Syncing" : "Prototype"}</span>
+            <span class="map-chip" data-match-status>${state.matchLoading ? "Syncing" : "Live"}</span>
           </div>
           <div class="map-overlay bottom-right">
             <span>Cardiff</span>
@@ -274,7 +258,7 @@ function updateWidgetCollapseState(widget) {
 
 function matchSummaryText() {
   if (state.matchLoading) {
-    return "Loading prototype match data for the first map layout.";
+    return "Loading match data for Cardiff.";
   }
 
   if (state.matchError) {
@@ -285,7 +269,7 @@ function matchSummaryText() {
     return "Base map first, with command panels ready for territories, armies, and routes.";
   }
 
-  return `${state.matchSnapshot.mapArea} prototype: ${state.matchSnapshot.territories.length} territories and ${state.matchSnapshot.leaderboard.length} factions.`;
+  return `${state.matchSnapshot.mapArea} match: ${state.matchSnapshot.territories.length} territories and ${state.matchSnapshot.leaderboard.length} factions.`;
 }
 
 function selectedTerritory() {
@@ -295,7 +279,7 @@ function selectedTerritory() {
 function selectedTerritoryOwnerText() {
   const territory = selectedTerritory();
   if (!territory) {
-    return "Prototype selection shown until territory overlays are added.";
+    return "Select a territory to inspect ownership and stats.";
   }
 
   const owner = factionById(territory.ownerFactionId);
@@ -389,14 +373,14 @@ async function loadMatchSnapshot() {
   updateMatchSummary();
 
   try {
-    const response = await fetch("/api/prototype/cardiff");
+    const response = await fetch("/api/matches/cardiff");
     if (!response.ok) {
-      throw new Error(`The prototype API returned HTTP ${response.status}.`);
+      throw new Error(`The match API returned HTTP ${response.status}.`);
     }
 
     state.matchSnapshot = await response.json();
   } catch (error) {
-    state.matchError = error instanceof Error ? error.message : "Prototype match data could not be loaded.";
+    state.matchError = error instanceof Error ? error.message : "Match data could not be loaded.";
   } finally {
     state.matchLoading = false;
     if (isMatchRoute()) {
@@ -465,8 +449,7 @@ function render() {
 }
 
 function initMatchPage() {
-  void loadMatchSnapshot();
-  initMap();
+  void loadMatchSnapshot().then(initMap);
 }
 
 function initMap() {
@@ -534,6 +517,10 @@ function initMap() {
 
 function addPlayAreaBoundary(map) {
   const mapDetails = currentMapDetails();
+  if (mapDetails.boundaryCoordinates.length === 0) {
+    return;
+  }
+
   const boundary = playAreaBoundaryFeature(mapDetails);
   const mask = outOfBoundsMaskFeature(mapDetails);
 
@@ -590,7 +577,21 @@ function addPlayAreaBoundary(map) {
 }
 
 function currentMapDetails() {
-  return MAP_DETAILS.cardiff;
+  const map = state.matchSnapshot?.map;
+  if (!map) {
+    return FALLBACK_MAP_VIEW;
+  }
+
+  return {
+    name: map.name,
+    center: coordinatePair(map.center),
+    cameraBounds: map.cameraBounds.map(coordinatePair),
+    boundaryCoordinates: map.boundaryCoordinates.map(coordinatePair)
+  };
+}
+
+function coordinatePair(coordinate) {
+  return [coordinate.longitude, coordinate.latitude];
 }
 
 function playAreaBoundaryFeature(mapDetails) {
@@ -667,7 +668,7 @@ function updateMatchDataInPlace() {
 
   const status = document.querySelector("[data-match-status]");
   if (status) {
-    status.textContent = state.matchError ? "Offline" : "Prototype";
+    status.textContent = state.matchError ? "Offline" : "Live";
   }
 
   const selected = selectedTerritory();
@@ -703,7 +704,7 @@ function updateMatchDataInPlace() {
 }
 
 function matchRoute(game) {
-  return game.id === "cardiff-prototype"
+  return game.id === "cardiff-match"
     ? routes.match
     : `/games/${encodeURIComponent(game.id)}`;
 }

@@ -73,9 +73,9 @@ The MVP should exclude:
 - naval combat beyond port-to-port travel
 - air combat beyond airport-to-airport movement
 
-## Prototype Defaults
+## Match Defaults
 
-The first prototype should use:
+The first match should use:
 
 - map area: Cardiff
 - territory count target: 80-120 territories, with 100 as the initial target

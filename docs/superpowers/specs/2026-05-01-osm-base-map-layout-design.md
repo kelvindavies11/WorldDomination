@@ -40,7 +40,7 @@ The Cardiff map details are stored in `MAP_DETAILS.cardiff` so the map center, c
 
 ## Data Flow
 
-The match screen fetches `/api/prototype/cardiff` after render. Prototype data populates:
+The match screen fetches `/api/matches/cardiff` after render. Match data populates:
 
 - map area name
 - territory count

@@ -22,8 +22,8 @@ public sealed class GameLobbyService
     private readonly List<AvailableGameDto> games =
     [
         new(
-            Id: "cardiff-prototype",
-            Name: "Cardiff Prototype",
+            Id: "cardiff-match",
+            Name: "Cardiff Match",
             Status: "Open",
             MapArea: "Cardiff",
             HumanPlayers: 1,

@@ -2,17 +2,23 @@ using Game.Application;
 
 namespace Game.Tests.Application;
 
-public sealed class PrototypeMatchServiceTests
+public sealed class CardiffMatchServiceTests
 {
     [Fact]
-    public void CreatesDeterministicCardiffPrototypeWithDocumentedDefaults()
+    public void CreatesDeterministicCardiffMatchWithDocumentedDefaults()
     {
-        var service = new PrototypeMatchService();
+        var service = new CardiffMatchService(new GameMapService());
 
-        var match = service.CreateCardiffPrototype();
+        var match = service.CreateCardiffMatch();
 
-        Assert.Equal("cardiff-prototype", match.GameId);
+        Assert.Equal("cardiff-match", match.GameId);
         Assert.Equal("Cardiff", match.MapArea);
+        Assert.Equal("Cardiff", match.Map.Name);
+        Assert.Equal(-3.1791, match.Map.Center.Longitude);
+        Assert.Equal(51.4816, match.Map.Center.Latitude);
+        Assert.Equal(2, match.Map.CameraBounds.Count);
+        Assert.Equal(13, match.Map.BoundaryCoordinates.Count);
+        Assert.Equal(match.Map.BoundaryCoordinates[0], match.Map.BoundaryCoordinates[^1]);
         Assert.Equal(100, match.Territories.Count);
         Assert.Equal(8, match.Factions.Count);
         Assert.Equal(2, match.Factions.Count(faction => faction.Kind == FactionKind.Human));
@@ -34,9 +40,9 @@ public sealed class PrototypeMatchServiceTests
     [Fact]
     public void SpreadsNpcStartsAcrossTheTerritoryList()
     {
-        var service = new PrototypeMatchService();
+        var service = new CardiffMatchService(new GameMapService());
 
-        var match = service.CreateCardiffPrototype();
+        var match = service.CreateCardiffMatch();
         var npcStartIndexes = match.Factions
             .Where(faction => faction.Kind == FactionKind.Npc)
             .Select(faction => match.Territories.Single(territory => territory.OwnerFactionId == faction.Id).Index)

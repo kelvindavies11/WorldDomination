@@ -6,16 +6,17 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
-builder.Services.AddSingleton<PrototypeMatchService>();
+builder.Services.AddSingleton<CardiffMatchService>();
 builder.Services.AddSingleton<GameLobbyService>();
+builder.Services.AddSingleton<GameMapService>();
 
 var app = builder.Build();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.MapGet("/api/prototype/cardiff", (PrototypeMatchService service) =>
-    Results.Ok(service.CreateCardiffPrototype()));
+app.MapGet("/api/matches/cardiff", (CardiffMatchService service) =>
+    Results.Ok(service.CreateCardiffMatch()));
 
 app.MapGet("/api/games", (GameLobbyService service) =>
     Results.Ok(service.ListAvailableGames()));

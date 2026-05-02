@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { PrototypeMatchSnapshot } from "../../api/prototype";
+import type { MatchSnapshot } from "../../api/match";
 import { createLobbyModel } from "./lobbyModel";
 
-const snapshot: PrototypeMatchSnapshot = {
-  gameId: "cardiff-prototype",
+const snapshot: MatchSnapshot = {
+  gameId: "cardiff-match",
   mapArea: "Cardiff",
   factions: [
     { id: "human-1", name: "Player 1", kind: "Human", color: "#1f8a70" },

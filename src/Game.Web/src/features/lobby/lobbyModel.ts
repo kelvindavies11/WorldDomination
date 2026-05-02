@@ -1,6 +1,6 @@
-import type { PrototypeMatchSnapshot } from "../../api/prototype";
+import type { MatchSnapshot } from "../../api/match";
 
-export function createLobbyModel(snapshot: PrototypeMatchSnapshot) {
+export function createLobbyModel(snapshot: MatchSnapshot) {
   const humanPlayers = snapshot.factions.filter(faction => faction.kind === "Human");
   const npcFactions = snapshot.factions.filter(faction => faction.kind === "Npc");
   const occupiedStarts = snapshot.territories.filter(territory => territory.ownerFactionId !== null).length;

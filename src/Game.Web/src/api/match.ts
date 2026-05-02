@@ -7,14 +7,14 @@ export type TerritoryStats = {
   strategicValue: number;
 };
 
-export type PrototypeFaction = {
+export type MatchFaction = {
   id: string;
   name: string;
   kind: FactionKind;
   color: string;
 };
 
-export type PrototypeTerritory = {
+export type MatchTerritory = {
   id: string;
   index: number;
   name: string;
@@ -23,14 +23,14 @@ export type PrototypeTerritory = {
   stats: TerritoryStats;
 };
 
-export type PrototypeArmy = {
+export type MatchArmy = {
   id: string;
   factionId: string;
   territoryId: string;
   strength: number;
 };
 
-export type PrototypeRoute = {
+export type MatchRoute = {
   sourceTerritoryId: string;
   destinationTerritoryId: string;
   transport: string;
@@ -47,22 +47,22 @@ export type LeaderboardRow = {
   isEliminated: boolean;
 };
 
-export type PrototypeMatchSnapshot = {
+export type MatchSnapshot = {
   gameId: string;
   mapArea: string;
-  factions: PrototypeFaction[];
-  territories: PrototypeTerritory[];
-  armies: PrototypeArmy[];
-  routes: PrototypeRoute[];
+  factions: MatchFaction[];
+  territories: MatchTerritory[];
+  armies: MatchArmy[];
+  routes: MatchRoute[];
   leaderboard: LeaderboardRow[];
 };
 
-export async function fetchCardiffPrototype(signal?: AbortSignal): Promise<PrototypeMatchSnapshot> {
-  const response = await fetch("/api/prototype/cardiff", { signal });
+export async function fetchCardiffMatch(signal?: AbortSignal): Promise<MatchSnapshot> {
+  const response = await fetch("/api/matches/cardiff", { signal });
 
   if (!response.ok) {
-    throw new Error(`Cardiff prototype request failed with ${response.status}`);
+    throw new Error(`Cardiff match request failed with ${response.status}`);
   }
 
-  return response.json() as Promise<PrototypeMatchSnapshot>;
+  return response.json() as Promise<MatchSnapshot>;
 }

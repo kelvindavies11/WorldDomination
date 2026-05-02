@@ -106,7 +106,7 @@ function GameTable({ games, go }: { games: AvailableGame[]; go: (path: string) =
             <span>{game.humanPlayers}/{game.maxHumanPlayers}</span>
             <span>{game.mapArea}</span>
             <span>{game.npcFactions}</span>
-            <button className="secondary" onClick={() => go(game.id === "cardiff-prototype" ? routes.match : `/games/${game.id}`)}>Join</button>
+            <button className="secondary" onClick={() => go(game.id === "cardiff-match" ? routes.match : `/games/${game.id}`)}>Join</button>
           </div>
         ))}
       </div>
