@@ -6,18 +6,21 @@ public sealed class CardiffMatchService
 {
     private readonly GameMapService mapService;
     private readonly CardiffPostcodeTerritoryRepository postcodeTerritoryRepository;
+    private readonly CardiffTerritoryFeatureRepository territoryFeatureRepository;
 
     public CardiffMatchService(GameMapService mapService)
-        : this(mapService, new CardiffPostcodeTerritoryRepository())
+        : this(mapService, new CardiffPostcodeTerritoryRepository(), new CardiffTerritoryFeatureRepository())
     {
     }
 
     public CardiffMatchService(
         GameMapService mapService,
-        CardiffPostcodeTerritoryRepository postcodeTerritoryRepository)
+        CardiffPostcodeTerritoryRepository postcodeTerritoryRepository,
+        CardiffTerritoryFeatureRepository territoryFeatureRepository)
     {
         this.mapService = mapService;
         this.postcodeTerritoryRepository = postcodeTerritoryRepository;
+        this.territoryFeatureRepository = territoryFeatureRepository;
     }
 
     public MatchSnapshot CreateCardiffMatch()
@@ -25,10 +28,15 @@ public sealed class CardiffMatchService
         var map = mapService.GetMap("cardiff");
         var factions = CreateFactions();
         var postcodeFeatures = postcodeTerritoryRepository.Load();
+        var territoryFeatures = territoryFeatureRepository.Load();
         var startIndexes = CreateStartIndexes(postcodeFeatures.Count);
         var factionByStartIndex = startIndexes.ToDictionary(pair => pair.Value, pair => pair.Key);
         var territories = postcodeFeatures
-            .Select((feature, index) => CreateTerritory(feature, index, factionByStartIndex.GetValueOrDefault(index)))
+            .Select((feature, index) => CreateTerritory(
+                feature,
+                index,
+                factionByStartIndex.GetValueOrDefault(index),
+                territoryFeatures))
             .ToList();
         map = map with
         {
@@ -37,6 +45,8 @@ public sealed class CardiffMatchService
                     territory.Id,
                     territory.Name,
                     territory.Postcode ?? territory.Name,
+                    territory.Stats,
+                    territory.Features,
                     territory.BoundaryCoordinates))
                 .ToList()
         };
@@ -104,48 +114,22 @@ public sealed class CardiffMatchService
     private static MatchTerritoryDto CreateTerritory(
         PostcodeTerritoryFeature feature,
         int index,
-        string? ownerFactionId)
+        string? ownerFactionId,
+        IReadOnlyDictionary<string, TerritoryFeatureSummary> territoryFeatures)
     {
-        var features = new TerritoryFeatureSummary(
-            Factories: index % 6,
-            Shops: (index * 2) % 11,
-            CommercialAreas: (index + 3) % 8,
-            Offices: (index * 3) % 10,
-            IndustrialSites: index % 5,
-            FarmlandOrResources: (index + 1) % 4,
-            PopulationSupport: (index * 5) % 12,
-            Mountains: index % 17 == 0 ? 2 : 0,
-            Hills: index % 4,
-            MilitarySites: index % 29 == 0 ? 1 : 0,
-            CastlesOrForts: index % 31 == 0 ? 1 : 0,
-            GovernmentSites: index % 9,
-            Chokepoints: index % 7,
-            UrbanDensity: (index * 4) % 11,
-            Roads: (index * 7) % 12,
-            Railways: index % 5,
-            BridgesOrTunnels: index % 6,
-            Airports: index is 18 or 72 ? 1 : 0,
-            Ports: index is 8 or 64 ? 1 : 0,
-            Connections: 2 + index % 5,
-            AreaSquareKm: 0.8 + index % 5 * 0.2,
-            SpecialFeatures: index % 13 == 0 ? 2 : 0);
-
-        var populationSupport = int.TryParse(feature.Postcode[^2..], out var postcodeNumber)
-            ? postcodeNumber % 12
-            : index % 12;
-
-        var adjustedFeatures = features with
+        if (!territoryFeatures.TryGetValue(feature.Postcode, out var features))
         {
-            PopulationSupport = populationSupport
-        };
+            throw new InvalidOperationException($"No persisted OSM feature summary exists for postcode sector '{feature.Postcode}'.");
+        }
 
         return new MatchTerritoryDto(
             Id: $"postcode-{NormalizePostcode(feature.Postcode)}",
             Index: index,
             Name: feature.Name,
-            AreaSquareKm: adjustedFeatures.AreaSquareKm,
+            AreaSquareKm: features.AreaSquareKm,
             OwnerFactionId: ownerFactionId,
-            Stats: TerritoryStatCalculator.Calculate(adjustedFeatures, Ruleset.Default),
+            Stats: TerritoryStatCalculator.Calculate(features, Ruleset.Default),
+            Features: features,
             BoundaryCoordinates: feature.BoundaryCoordinates,
             Postcode: feature.Postcode);
     }

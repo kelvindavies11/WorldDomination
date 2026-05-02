@@ -30,6 +30,8 @@ public sealed record MapTerritoryDto(
     string Id,
     string Name,
     string Postcode,
+    TerritoryStats Stats,
+    TerritoryFeatureSummary Features,
     IReadOnlyList<MapCoordinateDto> BoundaryCoordinates);
 
 public sealed record MapCoordinateDto(
@@ -49,6 +51,7 @@ public sealed record MatchTerritoryDto(
     double AreaSquareKm,
     string? OwnerFactionId,
     TerritoryStats Stats,
+    TerritoryFeatureSummary Features,
     IReadOnlyList<MapCoordinateDto> BoundaryCoordinates,
     string? Postcode);
 

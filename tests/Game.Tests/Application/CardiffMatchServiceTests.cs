@@ -1,4 +1,5 @@
 using Game.Application;
+using Game.Domain;
 
 namespace Game.Tests.Application;
 
@@ -31,6 +32,11 @@ public sealed class CardiffMatchServiceTests
             Assert.False(string.IsNullOrWhiteSpace(territory.Postcode));
             Assert.NotEmpty(territory.BoundaryCoordinates);
             Assert.Equal(territory.BoundaryCoordinates[0], territory.BoundaryCoordinates[^1]);
+            Assert.NotEqual(TerritoryFeatureSummary.Empty, territory.Features);
+            Assert.InRange(territory.Stats.Economy, 0, 100);
+            Assert.InRange(territory.Stats.Defense, 0, 100);
+            Assert.InRange(territory.Stats.Mobility, 0, 100);
+            Assert.InRange(territory.Stats.StrategicValue, 0, 100);
         });
         Assert.Equal(8, match.Factions.Count);
         Assert.Equal(2, match.Factions.Count(faction => faction.Kind == FactionKind.Human));
@@ -45,6 +51,7 @@ public sealed class CardiffMatchServiceTests
             Assert.NotEmpty(territory.BoundaryCoordinates);
             Assert.Equal(territory.BoundaryCoordinates[0], territory.BoundaryCoordinates[^1]);
             Assert.True(territory.BoundaryCoordinates.Count > 10);
+            Assert.NotEqual(TerritoryFeatureSummary.Empty, territory.Features);
             Assert.InRange(territory.Stats.Economy, 0, 100);
             Assert.InRange(territory.Stats.Defense, 0, 100);
             Assert.InRange(territory.Stats.Mobility, 0, 100);

@@ -40,11 +40,14 @@ public sealed class MatchApiTests
         {
             Assert.False(string.IsNullOrWhiteSpace(territory.Postcode));
             Assert.NotEmpty(territory.BoundaryCoordinates);
+            Assert.NotNull(territory.Features);
+            Assert.NotNull(territory.Stats);
         });
         Assert.All(snapshot.Territories, territory =>
         {
             Assert.False(string.IsNullOrWhiteSpace(territory.Postcode));
             Assert.NotEmpty(territory.BoundaryCoordinates);
+            Assert.NotNull(territory.Features);
         });
         Assert.Equal(8, snapshot.Leaderboard.Count);
     }
