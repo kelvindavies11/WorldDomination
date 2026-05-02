@@ -19,15 +19,19 @@ public sealed class CardiffMatchServiceTests
         Assert.Equal(2, match.Map.CameraBounds.Count);
         Assert.Equal(13, match.Map.BoundaryCoordinates.Count);
         Assert.Equal(match.Map.BoundaryCoordinates[0], match.Map.BoundaryCoordinates[^1]);
-        Assert.Equal(100, match.Territories.Count);
+        Assert.True(match.Territories.Count > 100);
         Assert.Equal(8, match.Factions.Count);
         Assert.Equal(2, match.Factions.Count(faction => faction.Kind == FactionKind.Human));
         Assert.Equal(6, match.Factions.Count(faction => faction.Kind == FactionKind.Npc));
         Assert.Equal(8, match.Armies.Count);
         Assert.All(match.Armies, army => Assert.Equal(100, army.Strength));
-        Assert.Equal(92, match.Territories.Count(territory => territory.OwnerFactionId is null));
+        Assert.Equal(match.Territories.Count - 8, match.Territories.Count(territory => territory.OwnerFactionId is null));
         Assert.All(match.Territories, territory =>
         {
+            Assert.False(string.IsNullOrWhiteSpace(territory.Postcode));
+            Assert.StartsWith("CF", territory.Postcode);
+            Assert.NotEmpty(territory.BoundaryCoordinates);
+            Assert.Equal(territory.BoundaryCoordinates[0], territory.BoundaryCoordinates[^1]);
             Assert.InRange(territory.Stats.Economy, 0, 100);
             Assert.InRange(territory.Stats.Defense, 0, 100);
             Assert.InRange(territory.Stats.Mobility, 0, 100);
@@ -49,6 +53,8 @@ public sealed class CardiffMatchServiceTests
             .Order()
             .ToArray();
 
-        Assert.Equal(new[] { 22, 33, 44, 55, 66, 77 }, npcStartIndexes);
+        Assert.Equal(6, npcStartIndexes.Length);
+        Assert.True(npcStartIndexes.SequenceEqual(npcStartIndexes.Order()));
+        Assert.All(npcStartIndexes, index => Assert.InRange(index, 1, match.Territories.Count - 2));
     }
 }

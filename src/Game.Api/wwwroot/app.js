@@ -9,11 +9,13 @@ const state = {
   matchSnapshot: null,
   matchLoading: false,
   matchError: null,
+  selectedTerritoryId: null,
   collapsedWidgets: new Set()
 };
 
 let activeMap = null;
 let mapInitializedForPath = null;
+let hoveredTerritoryId = null;
 
 const FALLBACK_MAP_VIEW = {
   name: "Cardiff",
@@ -173,6 +175,7 @@ function renderMatchPage() {
           </button>
           <div class="widget-body" data-widget-body>
             <div class="panel-section">
+              <p class="muted" data-selected-postcode>${selectedTerritoryPostcodeText()}</p>
               <p class="muted" data-selected-owner>${selectedTerritoryOwnerText()}</p>
             </div>
 
@@ -273,7 +276,19 @@ function matchSummaryText() {
 }
 
 function selectedTerritory() {
-  return state.matchSnapshot?.territories?.[0] ?? null;
+  const territories = state.matchSnapshot?.territories;
+  if (!territories?.length) {
+    return null;
+  }
+
+  return territories.find(territory => territory.id === state.selectedTerritoryId) ?? territories[0];
+}
+
+function selectedTerritoryPostcodeText() {
+  const territory = selectedTerritory();
+  return territory?.postcode
+    ? `Postcode ${territory.postcode}`
+    : "Postcode territory data is loading.";
 }
 
 function selectedTerritoryOwnerText() {
@@ -379,6 +394,7 @@ async function loadMatchSnapshot() {
     }
 
     state.matchSnapshot = await response.json();
+    state.selectedTerritoryId ??= state.matchSnapshot?.territories?.[0]?.id ?? null;
   } catch (error) {
     state.matchError = error instanceof Error ? error.message : "Match data could not be loaded.";
   } finally {
@@ -502,6 +518,7 @@ function initMap() {
     activeMap.addControl(new window.maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
     activeMap.once("load", () => {
       addPlayAreaBoundary(activeMap);
+      addTerritoryLayers(activeMap);
       activeMap.fitBounds(currentMapDetails().cameraBounds, {
         padding: { top: 84, right: 52, bottom: 64, left: 52 },
         maxZoom: 11.5,
@@ -513,6 +530,145 @@ function initMap() {
   } catch (error) {
     fallback?.classList.add("is-visible");
   }
+}
+
+function addTerritoryLayers(map) {
+  const territories = territoryFeatureCollection();
+  if (territories.features.length === 0) {
+    return;
+  }
+
+  if (map.getSource("territories")) {
+    map.getSource("territories").setData(territories);
+  } else {
+    map.addSource("territories", {
+      type: "geojson",
+      data: territories
+    });
+  }
+
+  if (!map.getLayer("territory-fill")) {
+    map.addLayer({
+      id: "territory-fill",
+      type: "fill",
+      source: "territories",
+      paint: {
+        "fill-color": "#dceee8",
+        "fill-opacity": 0.22
+      }
+    });
+  }
+
+  if (!map.getLayer("territory-hover-fill")) {
+    map.addLayer({
+      id: "territory-hover-fill",
+      type: "fill",
+      source: "territories",
+      filter: ["==", ["get", "id"], ""],
+      paint: {
+        "fill-color": "#f7fffb",
+        "fill-opacity": 0.48
+      }
+    });
+  }
+
+  if (!map.getLayer("territory-outline")) {
+    map.addLayer({
+      id: "territory-outline",
+      type: "line",
+      source: "territories",
+      paint: {
+        "line-color": "#ffffff",
+        "line-width": 0.8,
+        "line-opacity": 0.42
+      }
+    });
+  }
+
+  if (!map.getLayer("territory-hover-outline")) {
+    map.addLayer({
+      id: "territory-hover-outline",
+      type: "line",
+      source: "territories",
+      filter: ["==", ["get", "id"], ""],
+      paint: {
+        "line-color": "#ffffff",
+        "line-width": 2,
+        "line-opacity": 0.9
+      }
+    });
+  }
+
+  if (!map.getLayer("territory-selected-outline")) {
+    map.addLayer({
+      id: "territory-selected-outline",
+      type: "line",
+      source: "territories",
+      filter: ["==", ["get", "id"], state.selectedTerritoryId ?? ""],
+      paint: {
+        "line-color": "#ffffff",
+        "line-width": 2.4,
+        "line-opacity": 0.82
+      }
+    });
+  }
+
+  map.on("click", "territory-fill", event => {
+    const feature = event.features?.[0];
+    const id = feature?.properties?.id;
+    if (!id) {
+      return;
+    }
+
+    state.selectedTerritoryId = id;
+    map.setFilter("territory-selected-outline", ["==", ["get", "id"], id]);
+    updateMatchDataInPlace();
+  });
+
+  map.on("mousemove", "territory-fill", event => {
+    const id = event.features?.[0]?.properties?.id;
+    if (!id || id === hoveredTerritoryId) {
+      return;
+    }
+
+    hoveredTerritoryId = id;
+    map.setFilter("territory-hover-fill", ["==", ["get", "id"], id]);
+    map.setFilter("territory-hover-outline", ["==", ["get", "id"], id]);
+    map.getCanvas().style.cursor = "pointer";
+  });
+
+  map.on("mouseleave", "territory-fill", () => {
+    hoveredTerritoryId = null;
+    map.setFilter("territory-hover-fill", ["==", ["get", "id"], ""]);
+    map.setFilter("territory-hover-outline", ["==", ["get", "id"], ""]);
+    map.getCanvas().style.cursor = "";
+  });
+}
+
+function territoryFeatureCollection() {
+  const territories = state.matchSnapshot?.territories ?? [];
+  return {
+    type: "FeatureCollection",
+    features: territories
+      .filter(territory => territory.boundaryCoordinates?.length >= 4)
+      .map(territory => {
+        const color = factionById(territory.ownerFactionId)?.color ?? "#1f8a70";
+        return {
+          type: "Feature",
+          properties: {
+            id: territory.id,
+            name: territory.name,
+            postcode: territory.postcode,
+            ownerFactionId: territory.ownerFactionId,
+            color
+          },
+          geometry: {
+            type: "Polygon",
+            coordinates: [territory.boundaryCoordinates.map(coordinatePair)]
+          }
+        };
+      })
+  };
 }
 
 function addPlayAreaBoundary(map) {
@@ -680,6 +836,11 @@ function updateMatchDataInPlace() {
   const selectedOwner = document.querySelector("[data-selected-owner]");
   if (selectedOwner) {
     selectedOwner.textContent = selectedTerritoryOwnerText();
+  }
+
+  const selectedPostcode = document.querySelector("[data-selected-postcode]");
+  if (selectedPostcode) {
+    selectedPostcode.textContent = selectedTerritoryPostcodeText();
   }
 
   const selectedStats = document.querySelector("[data-selected-stats]");

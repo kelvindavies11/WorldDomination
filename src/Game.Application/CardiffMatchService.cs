@@ -5,39 +5,39 @@ namespace Game.Application;
 public sealed class CardiffMatchService
 {
     private readonly GameMapService mapService;
+    private readonly CardiffPostcodeTerritoryRepository postcodeTerritoryRepository;
 
     public CardiffMatchService(GameMapService mapService)
+        : this(mapService, new CardiffPostcodeTerritoryRepository())
+    {
+    }
+
+    public CardiffMatchService(
+        GameMapService mapService,
+        CardiffPostcodeTerritoryRepository postcodeTerritoryRepository)
     {
         this.mapService = mapService;
+        this.postcodeTerritoryRepository = postcodeTerritoryRepository;
     }
 
     public MatchSnapshot CreateCardiffMatch()
     {
         var map = mapService.GetMap("cardiff");
         var factions = CreateFactions();
-        var startIndexes = new Dictionary<string, int>
-        {
-            ["human-1"] = 0,
-            ["human-2"] = 11,
-            ["npc-1"] = 22,
-            ["npc-2"] = 33,
-            ["npc-3"] = 44,
-            ["npc-4"] = 55,
-            ["npc-5"] = 66,
-            ["npc-6"] = 77
-        };
+        var postcodeFeatures = postcodeTerritoryRepository.Load();
+        var startIndexes = CreateStartIndexes(postcodeFeatures.Count);
         var factionByStartIndex = startIndexes.ToDictionary(pair => pair.Value, pair => pair.Key);
-        var territories = Enumerable.Range(0, 100)
-            .Select(index => CreateTerritory(index, factionByStartIndex.GetValueOrDefault(index)))
+        var territories = postcodeFeatures
+            .Select((feature, index) => CreateTerritory(feature, index, factionByStartIndex.GetValueOrDefault(index)))
             .ToList();
         var armies = startIndexes
             .Select(pair => new MatchArmyDto(
                 Id: $"army-{pair.Key}",
                 FactionId: pair.Key,
-                TerritoryId: $"territory-{pair.Value:000}",
+                TerritoryId: territories[pair.Value].Id,
                 Strength: 100))
             .ToList();
-        var routes = CreateRoutes();
+        var routes = CreateRoutes(territories);
         var leaderboard = MapControlCalculator.CalculateLeaderboard(
             territories.Select(territory => new ControlledTerritory(
                 territory.Id,
@@ -71,7 +71,30 @@ public sealed class CardiffMatchService
         new("npc-6", "NPC 6", FactionKind.Npc, "#8b5a2b")
     ];
 
-    private static MatchTerritoryDto CreateTerritory(int index, string? ownerFactionId)
+    private static IReadOnlyDictionary<string, int> CreateStartIndexes(int territoryCount)
+    {
+        if (territoryCount < 8)
+        {
+            throw new InvalidOperationException("Cardiff postcode territory data must contain at least 8 territories.");
+        }
+
+        return new Dictionary<string, int>
+        {
+            ["human-1"] = 0,
+            ["human-2"] = territoryCount - 1,
+            ["npc-1"] = territoryCount / 7,
+            ["npc-2"] = territoryCount * 2 / 7,
+            ["npc-3"] = territoryCount * 3 / 7,
+            ["npc-4"] = territoryCount * 4 / 7,
+            ["npc-5"] = territoryCount * 5 / 7,
+            ["npc-6"] = territoryCount * 6 / 7
+        };
+    }
+
+    private static MatchTerritoryDto CreateTerritory(
+        PostcodeTerritoryFeature feature,
+        int index,
+        string? ownerFactionId)
     {
         var features = new TerritoryFeatureSummary(
             Factories: index % 6,
@@ -97,18 +120,29 @@ public sealed class CardiffMatchService
             AreaSquareKm: 0.8 + index % 5 * 0.2,
             SpecialFeatures: index % 13 == 0 ? 2 : 0);
 
+        var populationSupport = int.TryParse(feature.Postcode[^2..], out var postcodeNumber)
+            ? postcodeNumber % 12
+            : index % 12;
+
+        var adjustedFeatures = features with
+        {
+            PopulationSupport = populationSupport
+        };
+
         return new MatchTerritoryDto(
-            Id: $"territory-{index:000}",
+            Id: $"postcode-{NormalizePostcode(feature.Postcode)}",
             Index: index,
-            Name: $"Cardiff Sector {index + 1}",
-            AreaSquareKm: features.AreaSquareKm,
+            Name: feature.Name,
+            AreaSquareKm: adjustedFeatures.AreaSquareKm,
             OwnerFactionId: ownerFactionId,
-            Stats: TerritoryStatCalculator.Calculate(features, Ruleset.Default));
+            Stats: TerritoryStatCalculator.Calculate(adjustedFeatures, Ruleset.Default),
+            BoundaryCoordinates: feature.BoundaryCoordinates,
+            Postcode: feature.Postcode);
     }
 
-    private static IReadOnlyList<MatchRouteDto> CreateRoutes()
+    private static IReadOnlyList<MatchRouteDto> CreateRoutes(IReadOnlyList<MatchTerritoryDto> territories)
     {
-        return Enumerable.Range(0, 99)
+        return Enumerable.Range(0, territories.Count - 1)
             .Select(index =>
             {
                 var transport = index % 10 == 0
@@ -121,12 +155,18 @@ public sealed class CardiffMatchService
                     Barrier: index % 15 == 0 ? RouteBarrier.BridgeOrTunnel : RouteBarrier.None));
 
                 return new MatchRouteDto(
-                    SourceTerritoryId: $"territory-{index:000}",
-                    DestinationTerritoryId: $"territory-{index + 1:000}",
+                    SourceTerritoryId: territories[index].Id,
+                    DestinationTerritoryId: territories[index + 1].Id,
                     Transport: transport,
                     EtaSeconds: result.EtaSeconds,
                     IsAllowed: result.IsAllowed);
             })
             .ToList();
     }
+
+    private static string NormalizePostcode(string postcode) =>
+        postcode
+            .Trim()
+            .ToLowerInvariant()
+            .Replace(" ", "-", StringComparison.Ordinal);
 }
