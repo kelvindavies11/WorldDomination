@@ -30,6 +30,16 @@ public sealed class CardiffMatchService
         var territories = postcodeFeatures
             .Select((feature, index) => CreateTerritory(feature, index, factionByStartIndex.GetValueOrDefault(index)))
             .ToList();
+        map = map with
+        {
+            Territories = territories
+                .Select(territory => new MapTerritoryDto(
+                    territory.Id,
+                    territory.Name,
+                    territory.Postcode ?? territory.Name,
+                    territory.BoundaryCoordinates))
+                .ToList()
+        };
         var armies = startIndexes
             .Select(pair => new MatchArmyDto(
                 Id: $"army-{pair.Key}",

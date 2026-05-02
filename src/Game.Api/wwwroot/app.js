@@ -646,7 +646,8 @@ function addTerritoryLayers(map) {
 }
 
 function territoryFeatureCollection() {
-  const territories = state.matchSnapshot?.territories ?? [];
+  const mapTerritories = state.matchSnapshot?.map?.territories;
+  const territories = mapTerritories?.length ? mapTerritories : state.matchSnapshot?.territories ?? [];
   return {
     type: "FeatureCollection",
     features: territories

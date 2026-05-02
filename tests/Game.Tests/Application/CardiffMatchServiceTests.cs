@@ -20,6 +20,16 @@ public sealed class CardiffMatchServiceTests
         Assert.Equal(13, match.Map.BoundaryCoordinates.Count);
         Assert.Equal(match.Map.BoundaryCoordinates[0], match.Map.BoundaryCoordinates[^1]);
         Assert.True(match.Territories.Count >= 40);
+        Assert.Equal(match.Territories.Count, match.Map.Territories.Count);
+        Assert.Contains(match.Map.Territories, territory => territory.Postcode == "CF64 1");
+        Assert.Contains(match.Map.Territories, territory => territory.Postcode == "CF64 2");
+        Assert.Contains(match.Map.Territories, territory => territory.Postcode == "CF64 3");
+        Assert.All(match.Map.Territories, territory =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(territory.Postcode));
+            Assert.NotEmpty(territory.BoundaryCoordinates);
+            Assert.Equal(territory.BoundaryCoordinates[0], territory.BoundaryCoordinates[^1]);
+        });
         Assert.Equal(8, match.Factions.Count);
         Assert.Equal(2, match.Factions.Count(faction => faction.Kind == FactionKind.Human));
         Assert.Equal(6, match.Factions.Count(faction => faction.Kind == FactionKind.Npc));

@@ -28,7 +28,8 @@ public sealed class GameMapService
                 new MapCoordinateDto(-3.2860, 51.5060),
                 new MapCoordinateDto(-3.3110, 51.4650),
                 new MapCoordinateDto(-3.2820, 51.4300)
-            ])
+            ],
+            Territories: [])
     ];
 
     public MatchMapDto GetMap(string id)

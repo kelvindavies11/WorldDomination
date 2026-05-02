@@ -32,6 +32,13 @@ public sealed class MatchApiTests
         Assert.Equal(13, snapshot.Map.BoundaryCoordinates.Count);
         Assert.Equal(snapshot.Map.BoundaryCoordinates[0], snapshot.Map.BoundaryCoordinates[^1]);
         Assert.True(snapshot.Territories.Count >= 40);
+        Assert.Equal(snapshot.Territories.Count, snapshot.Map.Territories.Count);
+        Assert.Contains(snapshot.Map.Territories, territory => territory.Postcode == "CF64 1");
+        Assert.All(snapshot.Map.Territories, territory =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(territory.Postcode));
+            Assert.NotEmpty(territory.BoundaryCoordinates);
+        });
         Assert.All(snapshot.Territories, territory =>
         {
             Assert.False(string.IsNullOrWhiteSpace(territory.Postcode));
@@ -104,6 +111,7 @@ public sealed class MatchApiTests
         Assert.Contains("territory-fill", appScript);
         Assert.Contains("territory-hover-fill", appScript);
         Assert.Contains("hoveredTerritoryId", appScript);
+        Assert.Contains("map?.territories", appScript);
         Assert.Contains("\"fill-opacity\": 0.22", appScript);
         Assert.Contains("data-widget-body", appScript);
         Assert.Contains("collapsedWidgets", appScript);
