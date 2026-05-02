@@ -29,11 +29,13 @@ public sealed class MatchApiTests
         Assert.Equal("cardiff-match", snapshot.GameId);
         Assert.Equal("Cardiff", snapshot.MapArea);
         Assert.Equal("Cardiff", snapshot.Map.Name);
-        Assert.Equal(13, snapshot.Map.BoundaryCoordinates.Count);
+        Assert.Equal(15, snapshot.Map.BoundaryCoordinates.Count);
         Assert.Equal(snapshot.Map.BoundaryCoordinates[0], snapshot.Map.BoundaryCoordinates[^1]);
-        Assert.True(snapshot.Territories.Count >= 40);
+        Assert.True(snapshot.Territories.Count >= 58);
         Assert.Equal(snapshot.Territories.Count, snapshot.Map.Territories.Count);
         Assert.Contains(snapshot.Map.Territories, territory => territory.Postcode == "CF64 1");
+        Assert.Contains(snapshot.Map.Territories, territory => territory.Postcode == "CF64 4");
+        Assert.Contains(snapshot.Map.Territories, territory => territory.Postcode == "CF5 6");
         Assert.All(snapshot.Map.Territories, territory =>
         {
             Assert.False(string.IsNullOrWhiteSpace(territory.Postcode));

@@ -17,13 +17,15 @@ public sealed class CardiffMatchServiceTests
         Assert.Equal(-3.1791, match.Map.Center.Longitude);
         Assert.Equal(51.4816, match.Map.Center.Latitude);
         Assert.Equal(2, match.Map.CameraBounds.Count);
-        Assert.Equal(13, match.Map.BoundaryCoordinates.Count);
+        Assert.Equal(15, match.Map.BoundaryCoordinates.Count);
         Assert.Equal(match.Map.BoundaryCoordinates[0], match.Map.BoundaryCoordinates[^1]);
-        Assert.True(match.Territories.Count >= 40);
+        Assert.True(match.Territories.Count >= 58);
         Assert.Equal(match.Territories.Count, match.Map.Territories.Count);
         Assert.Contains(match.Map.Territories, territory => territory.Postcode == "CF64 1");
         Assert.Contains(match.Map.Territories, territory => territory.Postcode == "CF64 2");
         Assert.Contains(match.Map.Territories, territory => territory.Postcode == "CF64 3");
+        Assert.Contains(match.Map.Territories, territory => territory.Postcode == "CF64 4");
+        Assert.Contains(match.Map.Territories, territory => territory.Postcode == "CF5 6");
         Assert.All(match.Map.Territories, territory =>
         {
             Assert.False(string.IsNullOrWhiteSpace(territory.Postcode));

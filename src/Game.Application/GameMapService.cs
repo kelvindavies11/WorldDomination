@@ -10,24 +10,26 @@ public sealed class GameMapService
             Center: new MapCoordinateDto(-3.1791, 51.4816),
             CameraBounds:
             [
-                new MapCoordinateDto(-3.3300, 51.4050),
-                new MapCoordinateDto(-3.0300, 51.5550)
+                new MapCoordinateDto(-3.4050, 51.3700),
+                new MapCoordinateDto(-3.0300, 51.5850)
             ],
             BoundaryCoordinates:
             [
-                new MapCoordinateDto(-3.2820, 51.4300),
-                new MapCoordinateDto(-3.2450, 51.4175),
-                new MapCoordinateDto(-3.1960, 51.4120),
-                new MapCoordinateDto(-3.1410, 51.4210),
+                new MapCoordinateDto(-3.3850, 51.3860),
+                new MapCoordinateDto(-3.3440, 51.3750),
+                new MapCoordinateDto(-3.2820, 51.3820),
+                new MapCoordinateDto(-3.2140, 51.3920),
+                new MapCoordinateDto(-3.1450, 51.4140),
                 new MapCoordinateDto(-3.0910, 51.4440),
                 new MapCoordinateDto(-3.0620, 51.4800),
                 new MapCoordinateDto(-3.0740, 51.5150),
                 new MapCoordinateDto(-3.1180, 51.5410),
-                new MapCoordinateDto(-3.1810, 51.5480),
-                new MapCoordinateDto(-3.2360, 51.5360),
-                new MapCoordinateDto(-3.2860, 51.5060),
-                new MapCoordinateDto(-3.3110, 51.4650),
-                new MapCoordinateDto(-3.2820, 51.4300)
+                new MapCoordinateDto(-3.1810, 51.5700),
+                new MapCoordinateDto(-3.2550, 51.5720),
+                new MapCoordinateDto(-3.3370, 51.5480),
+                new MapCoordinateDto(-3.3890, 51.4940),
+                new MapCoordinateDto(-3.4050, 51.4320),
+                new MapCoordinateDto(-3.3850, 51.3860)
             ],
             Territories: [])
     ];
