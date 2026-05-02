@@ -5,68 +5,68 @@ namespace Game.Tests.Application;
 public sealed class CardiffPostcodeTerritoryRepositoryTests
 {
     [Fact]
-    public void LoadsPostcodesAndCreatesClosedStreetLevelPolygons()
+    public void LoadsRealPostalSectorPolygonsFromGeoJson()
     {
-        var csv = """
-        "Postcode","Latitude","Longitude","District","Ward","Roads","Population","Households"
-        "CF10 1AA","51.479103","-3.178094","Cardiff","Cathays","Heol Eglwys Fair","",""
+        var geoJson = """
+        {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": {
+                "postcodeSector": "CF10 1",
+                "name": "CF10 1 - Castle",
+                "locale": "Castle"
+              },
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [[
+                  [-3.181, 51.480],
+                  [-3.179, 51.480],
+                  [-3.179, 51.482],
+                  [-3.181, 51.482],
+                  [-3.181, 51.480]
+                ]]
+              }
+            }
+          ]
+        }
         """;
 
-        var territories = CardiffPostcodeTerritoryRepository.LoadFromCsv(csv);
+        var territories = CardiffPostcodeTerritoryRepository.LoadFromGeoJson(geoJson);
 
         var territory = Assert.Single(territories);
-        Assert.Equal("CF10 1AA", territory.Postcode);
-        Assert.Equal("CF10 1AA - Heol Eglwys Fair", territory.Name);
-        Assert.InRange(territory.BoundaryCoordinates.Count, 7, 10);
+        Assert.Equal("CF10 1", territory.Postcode);
+        Assert.Equal("CF10 1 - Castle", territory.Name);
+        Assert.Equal("Castle", territory.Road);
+        Assert.Equal(5, territory.BoundaryCoordinates.Count);
         Assert.Equal(territory.BoundaryCoordinates[0], territory.BoundaryCoordinates[^1]);
-        Assert.True(territory.BoundaryCoordinates.Select(point => point.Longitude).Distinct().Count() >= 3);
-        Assert.True(territory.BoundaryCoordinates.Select(point => point.Latitude).Distinct().Count() >= 3);
+        Assert.Equal(-3.181, territory.BoundaryCoordinates[0].Longitude);
+        Assert.Equal(51.480, territory.BoundaryCoordinates[0].Latitude);
     }
 
     [Fact]
-    public void CreatesStableDifferentShapesForDifferentPostcodes()
+    public void RejectsSectorPolygonsWithoutEnoughPoints()
     {
-        var csv = """
-        "Postcode","Latitude","Longitude","District","Ward","Roads","Population","Households"
-        "CF10 1AA","51.479103","-3.178094","Cardiff","Cathays","Heol Eglwys Fair","",""
-        "CF10 1AB","51.478637","-3.177909","Cardiff","Cathays","Heol Eglwys Fair","",""
-        """;
-
-        var firstLoad = CardiffPostcodeTerritoryRepository.LoadFromCsv(csv);
-        var secondLoad = CardiffPostcodeTerritoryRepository.LoadFromCsv(csv);
-
-        Assert.Equal(firstLoad[0].BoundaryCoordinates, secondLoad[0].BoundaryCoordinates);
-        Assert.NotEqual(firstLoad[0].BoundaryCoordinates, firstLoad[1].BoundaryCoordinates);
-    }
-
-    [Fact]
-    public void CreatesSharedEdgesBetweenAdjacentGeneratedTerritories()
-    {
-        var csv = """
-        "Postcode","Latitude","Longitude","District","Ward","Roads","Population","Households"
-        "CF10 1AA","51.480000","-3.180000","Cardiff","Cathays","Street A","",""
-        "CF10 1AB","51.480000","-3.179000","Cardiff","Cathays","Street B","",""
-        "CF10 1AC","51.479000","-3.180000","Cardiff","Cathays","Street C","",""
-        "CF10 1AD","51.479000","-3.179000","Cardiff","Cathays","Street D","",""
-        """;
-
-        var territories = CardiffPostcodeTerritoryRepository.LoadFromCsv(csv);
-
-        Assert.Contains(territories[0].BoundaryCoordinates, point => territories[1].BoundaryCoordinates.Contains(point));
-        Assert.Contains(territories[0].BoundaryCoordinates, point => territories[2].BoundaryCoordinates.Contains(point));
-    }
-
-    [Fact]
-    public void RejectsRowsWithoutCoordinates()
-    {
-        var csv = """
-        "Postcode","Latitude","Longitude","District","Ward","Roads","Population","Households"
-        "CF10 1AA","","-3.178094","Cardiff","Cathays","Heol Eglwys Fair","",""
+        var geoJson = """
+        {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": { "postcodeSector": "CF10 1" },
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[-3.181, 51.480], [-3.179, 51.480]]]
+              }
+            }
+          ]
+        }
         """;
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            CardiffPostcodeTerritoryRepository.LoadFromCsv(csv));
+            CardiffPostcodeTerritoryRepository.LoadFromGeoJson(geoJson));
 
-        Assert.Contains("coordinates", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("at least four", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 }

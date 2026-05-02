@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Microsoft.VisualBasic.FileIO;
 
 namespace Game.Application;
@@ -6,7 +7,7 @@ namespace Game.Application;
 public sealed class CardiffPostcodeTerritoryRepository
 {
     private const double BoundaryPaddingDegrees = 0.003;
-    private const string DataFileName = "cardiff-postcodes.csv";
+    private const string DataFileName = "cardiff-postal-sectors.geojson";
 
     public IReadOnlyList<PostcodeTerritoryFeature> Load()
     {
@@ -21,7 +22,40 @@ public sealed class CardiffPostcodeTerritoryRepository
             throw new FileNotFoundException($"Cardiff postcode data file was not found: {DataFileName}", path);
         }
 
-        return LoadFromCsv(File.ReadAllText(path));
+        return LoadFromGeoJson(File.ReadAllText(path));
+    }
+
+    public static IReadOnlyList<PostcodeTerritoryFeature> LoadFromGeoJson(string geoJson)
+    {
+        using var document = JsonDocument.Parse(geoJson);
+        var root = document.RootElement;
+        if (!root.TryGetProperty("features", out var featuresElement) ||
+            featuresElement.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidOperationException("Cardiff postal sector GeoJSON must be a FeatureCollection.");
+        }
+
+        var features = new List<PostcodeTerritoryFeature>();
+        foreach (var featureElement in featuresElement.EnumerateArray())
+        {
+            var properties = featureElement.GetProperty("properties");
+            var sector = RequiredString(properties, "postcodeSector");
+            var name = OptionalString(properties, "name") ?? sector;
+            var road = OptionalString(properties, "locale");
+            var boundary = ReadBoundaryCoordinates(featureElement.GetProperty("geometry"), sector);
+            var center = CalculateCenter(boundary);
+            features.Add(new PostcodeTerritoryFeature(
+                sector,
+                name,
+                boundary,
+                center.Latitude,
+                center.Longitude,
+                road));
+        }
+
+        return features
+            .OrderBy(feature => feature.Postcode, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     public static IReadOnlyList<PostcodeTerritoryFeature> LoadFromCsv(string csv)
@@ -77,6 +111,74 @@ public sealed class CardiffPostcodeTerritoryRepository
         return CreateTessellatedFeatures(rows)
             .OrderBy(feature => feature.Postcode, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static string RequiredString(JsonElement properties, string name)
+    {
+        var value = OptionalString(properties, name);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException($"Postal sector GeoJSON feature is missing '{name}'.");
+        }
+
+        return value;
+    }
+
+    private static string? OptionalString(JsonElement properties, string name)
+    {
+        return properties.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+    }
+
+    private static IReadOnlyList<MapCoordinateDto> ReadBoundaryCoordinates(JsonElement geometry, string sector)
+    {
+        var type = RequiredGeometryType(geometry, sector);
+        var coordinates = geometry.GetProperty("coordinates");
+        JsonElement ringElement = type switch
+        {
+            "Polygon" => coordinates[0],
+            "MultiPolygon" => coordinates[0][0],
+            _ => throw new InvalidOperationException($"Postal sector '{sector}' has unsupported geometry type '{type}'.")
+        };
+
+        var points = ringElement.EnumerateArray()
+            .Select(point => new MapCoordinateDto(point[0].GetDouble(), point[1].GetDouble()))
+            .ToList();
+
+        if (points.Count < 4)
+        {
+            throw new InvalidOperationException($"Postal sector '{sector}' must have at least four boundary points.");
+        }
+
+        if (points[0] != points[^1])
+        {
+            points.Add(points[0]);
+        }
+
+        return points;
+    }
+
+    private static string RequiredGeometryType(JsonElement geometry, string sector)
+    {
+        if (!geometry.TryGetProperty("type", out var typeElement) ||
+            typeElement.ValueKind != JsonValueKind.String ||
+            string.IsNullOrWhiteSpace(typeElement.GetString()))
+        {
+            throw new InvalidOperationException($"Postal sector '{sector}' is missing a geometry type.");
+        }
+
+        return typeElement.GetString()!;
+    }
+
+    private static (double Latitude, double Longitude) CalculateCenter(IReadOnlyList<MapCoordinateDto> boundary)
+    {
+        var usablePoints = boundary.Count > 1 && boundary[0] == boundary[^1]
+            ? boundary.Take(boundary.Count - 1)
+            : boundary;
+        return (
+            usablePoints.Average(point => point.Latitude),
+            usablePoints.Average(point => point.Longitude));
     }
 
     private static IReadOnlyList<PostcodeTerritoryFeature> CreateTessellatedFeatures(IReadOnlyList<PostcodeRow> rows)

@@ -19,7 +19,7 @@ public sealed class CardiffMatchServiceTests
         Assert.Equal(2, match.Map.CameraBounds.Count);
         Assert.Equal(13, match.Map.BoundaryCoordinates.Count);
         Assert.Equal(match.Map.BoundaryCoordinates[0], match.Map.BoundaryCoordinates[^1]);
-        Assert.True(match.Territories.Count > 100);
+        Assert.True(match.Territories.Count >= 40);
         Assert.Equal(8, match.Factions.Count);
         Assert.Equal(2, match.Factions.Count(faction => faction.Kind == FactionKind.Human));
         Assert.Equal(6, match.Factions.Count(faction => faction.Kind == FactionKind.Npc));
@@ -32,6 +32,7 @@ public sealed class CardiffMatchServiceTests
             Assert.StartsWith("CF", territory.Postcode);
             Assert.NotEmpty(territory.BoundaryCoordinates);
             Assert.Equal(territory.BoundaryCoordinates[0], territory.BoundaryCoordinates[^1]);
+            Assert.True(territory.BoundaryCoordinates.Count > 10);
             Assert.InRange(territory.Stats.Economy, 0, 100);
             Assert.InRange(territory.Stats.Defense, 0, 100);
             Assert.InRange(territory.Stats.Mobility, 0, 100);

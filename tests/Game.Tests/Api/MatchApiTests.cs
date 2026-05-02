@@ -31,7 +31,7 @@ public sealed class MatchApiTests
         Assert.Equal("Cardiff", snapshot.Map.Name);
         Assert.Equal(13, snapshot.Map.BoundaryCoordinates.Count);
         Assert.Equal(snapshot.Map.BoundaryCoordinates[0], snapshot.Map.BoundaryCoordinates[^1]);
-        Assert.True(snapshot.Territories.Count > 100);
+        Assert.True(snapshot.Territories.Count >= 40);
         Assert.All(snapshot.Territories, territory =>
         {
             Assert.False(string.IsNullOrWhiteSpace(territory.Postcode));

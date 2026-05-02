@@ -5,7 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Data\cardiff-postcodes.csv" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Data\cardiff-postal-sectors.geojson" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>
