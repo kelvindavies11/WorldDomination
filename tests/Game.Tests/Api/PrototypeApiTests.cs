@@ -73,6 +73,59 @@ public sealed class PrototypeApiTests
     }
 
     [Fact]
+    public void CardiffMatchFrontendAssetDeclaresMapLayoutHooks()
+    {
+        var appScript = File.ReadAllText(Path.Combine(
+            Directory.GetCurrentDirectory(),
+            "..",
+            "..",
+            "..",
+            "..",
+            "..",
+            "src",
+            "Game.Api",
+            "wwwroot",
+            "app.js"));
+
+        Assert.Contains("match-map-shell", appScript);
+        Assert.Contains("match-map", appScript);
+        Assert.Contains("floating-widget selected-territory-widget", appScript);
+        Assert.Contains("floating-widget leaderboard-widget", appScript);
+        Assert.Contains("data-action=\"toggle-widget\"", appScript);
+        Assert.Contains("data-widget-body", appScript);
+        Assert.Contains("collapsedWidgets", appScript);
+        Assert.Contains("updateWidgetCollapseState", appScript);
+        Assert.DoesNotContain("render();\r\n}", appScript[appScript.IndexOf("function toggleWidget", StringComparison.Ordinal)..appScript.IndexOf("app.addEventListener", StringComparison.Ordinal)]);
+        Assert.DoesNotContain("match-command-strip", appScript);
+        Assert.DoesNotContain("match-header", appScript);
+    }
+
+    [Fact]
+    public void CardiffMatchFrontendAssetDeclaresPlayableAreaBoundary()
+    {
+        var appScript = File.ReadAllText(Path.Combine(
+            Directory.GetCurrentDirectory(),
+            "..",
+            "..",
+            "..",
+            "..",
+            "..",
+            "src",
+            "Game.Api",
+            "wwwroot",
+            "app.js"));
+
+        Assert.Contains("MAP_DETAILS", appScript);
+        Assert.Contains("boundaryCoordinates", appScript);
+        Assert.Contains("cameraBounds", appScript);
+        Assert.Contains("maxBounds", appScript);
+        Assert.Contains("out-of-bounds-mask", appScript);
+        Assert.Contains("play-area-fill", appScript);
+        Assert.Contains("play-area-outline", appScript);
+        Assert.DoesNotContain("function playAreaBoundaryFeature(bounds)", appScript);
+    }
+
+    [Fact]
     public async Task UnknownApiRouteDoesNotReturnFrontendShell()
     {
         using var staticSite = StaticSiteFixture.Create();

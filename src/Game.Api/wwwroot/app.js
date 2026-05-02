@@ -5,7 +5,40 @@ const state = {
   loading: false,
   error: null,
   creating: false,
-  createError: null
+  createError: null,
+  matchSnapshot: null,
+  matchLoading: false,
+  matchError: null,
+  collapsedWidgets: new Set()
+};
+
+let activeMap = null;
+let mapInitializedForPath = null;
+
+const MAP_DETAILS = {
+  cardiff: {
+    name: "Cardiff",
+    center: [-3.1791, 51.4816],
+    cameraBounds: [
+      [-3.3300, 51.4050],
+      [-3.0300, 51.5550]
+    ],
+    boundaryCoordinates: [
+      [-3.2820, 51.4300],
+      [-3.2450, 51.4175],
+      [-3.1960, 51.4120],
+      [-3.1410, 51.4210],
+      [-3.0910, 51.4440],
+      [-3.0620, 51.4800],
+      [-3.0740, 51.5150],
+      [-3.1180, 51.5410],
+      [-3.1810, 51.5480],
+      [-3.2360, 51.5360],
+      [-3.2860, 51.5060],
+      [-3.3110, 51.4650],
+      [-3.2820, 51.4300]
+    ]
+  }
 };
 
 const routes = {
@@ -127,18 +160,204 @@ function renderCreatePage() {
 
 function renderMatchPage() {
   return shell(`
-    <div class="page-head">
-      <div>
-        <h1>Game joined</h1>
-        <p class="subtitle">The available-games flow is now in place. The active match screen can be built next.</p>
+    <section class="match-map-shell" aria-label="Cardiff active match command map">
+      <div class="match-layout">
+        <div class="map-stage">
+          <div id="match-map" class="match-map" role="img" aria-label="OpenStreetMap view of Cardiff"></div>
+          <div class="map-fallback" data-map-fallback>
+            <strong>Loading Cardiff map</strong>
+            <span>OpenStreetMap tiles will appear here when the map library is ready.</span>
+          </div>
+          <div class="map-overlay top-left">
+            <span class="map-chip">OSM base</span>
+            <span class="map-chip">Playing area</span>
+            <span class="map-chip" data-match-status>${state.matchLoading ? "Syncing" : "Prototype"}</span>
+          </div>
+          <div class="map-overlay bottom-right">
+            <span>Cardiff</span>
+            <strong>51.4816, -3.1791</strong>
+          </div>
+        </div>
+
+        <aside class="floating-widget selected-territory-widget ${widgetCollapsedClass("selected-territory")}" aria-label="Selected territory">
+          <button class="widget-toggle" type="button" data-action="toggle-widget" data-widget="selected-territory" aria-expanded="${!isWidgetCollapsed("selected-territory")}">
+            <span>
+              <span class="eyebrow">Selected territory</span>
+              <strong data-selected-name>${selectedTerritory()?.name ?? "Cardiff Central"}</strong>
+            </span>
+            <span class="toggle-icon" aria-hidden="true">${isWidgetCollapsed("selected-territory") ? "+" : "-"}</span>
+          </button>
+          <div class="widget-body" data-widget-body>
+            <div class="panel-section">
+              <p class="muted" data-selected-owner>${selectedTerritoryOwnerText()}</p>
+            </div>
+
+            <div class="stat-list" data-selected-stats>
+              ${territoryStatsMarkup(selectedTerritory())}
+            </div>
+
+            <div class="panel-section">
+              <h3>Army</h3>
+              <div class="army-card">
+                <span class="army-strength">100</span>
+                <span class="muted">starting strength</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <aside class="floating-widget leaderboard-widget ${widgetCollapsedClass("leaderboard")}" aria-label="Leaderboard and match status">
+          <button class="widget-toggle" type="button" data-action="toggle-widget" data-widget="leaderboard" aria-expanded="${!isWidgetCollapsed("leaderboard")}">
+            <span>
+              <span class="eyebrow">Leaderboard</span>
+              <strong>Match status</strong>
+            </span>
+            <span class="toggle-icon" aria-hidden="true">${isWidgetCollapsed("leaderboard") ? "+" : "-"}</span>
+          </button>
+          <div class="widget-body" data-widget-body>
+            <div class="panel-section">
+              <div class="leaderboard" data-leaderboard>
+                ${leaderboardMarkup()}
+              </div>
+            </div>
+
+            <div class="panel-section">
+              <h3>Match status</h3>
+              <div class="status-grid">
+                <div><span>Map</span><strong data-map-area>${state.matchSnapshot?.mapArea ?? "Cardiff"}</strong></div>
+                <div><span>Territories</span><strong data-territory-count>${state.matchSnapshot?.territories?.length ?? "100"}</strong></div>
+                <div><span>Players</span><strong>2 human</strong></div>
+                <div><span>NPCs</span><strong>6</strong></div>
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
-      <a class="button secondary" href="${routes.games}" data-link>Back to Games</a>
-    </div>
-    <section class="card">
-      <h2>Ready for match setup</h2>
-      <p class="muted">This page is a destination for Join while the actual game screen remains a later slice.</p>
     </section>
   `);
+}
+
+function isWidgetCollapsed(widget) {
+  return state.collapsedWidgets.has(widget);
+}
+
+function widgetCollapsedClass(widget) {
+  return isWidgetCollapsed(widget) ? "is-collapsed" : "";
+}
+
+function toggleWidget(widget) {
+  if (state.collapsedWidgets.has(widget)) {
+    state.collapsedWidgets.delete(widget);
+  } else {
+    state.collapsedWidgets.add(widget);
+  }
+
+  updateWidgetCollapseState(widget);
+}
+
+function updateWidgetCollapseState(widget) {
+  const toggle = document.querySelector(`[data-action="toggle-widget"][data-widget="${widget}"]`);
+  const widgetElement = toggle?.closest(".floating-widget");
+  if (!toggle || !widgetElement) {
+    return;
+  }
+
+  const collapsed = isWidgetCollapsed(widget);
+  widgetElement.classList.toggle("is-collapsed", collapsed);
+  toggle.setAttribute("aria-expanded", String(!collapsed));
+
+  const icon = toggle.querySelector(".toggle-icon");
+  if (icon) {
+    icon.textContent = collapsed ? "+" : "-";
+  }
+}
+
+function matchSummaryText() {
+  if (state.matchLoading) {
+    return "Loading prototype match data for the first map layout.";
+  }
+
+  if (state.matchError) {
+    return state.matchError;
+  }
+
+  if (!state.matchSnapshot) {
+    return "Base map first, with command panels ready for territories, armies, and routes.";
+  }
+
+  return `${state.matchSnapshot.mapArea} prototype: ${state.matchSnapshot.territories.length} territories and ${state.matchSnapshot.leaderboard.length} factions.`;
+}
+
+function selectedTerritory() {
+  return state.matchSnapshot?.territories?.[0] ?? null;
+}
+
+function selectedTerritoryOwnerText() {
+  const territory = selectedTerritory();
+  if (!territory) {
+    return "Prototype selection shown until territory overlays are added.";
+  }
+
+  const owner = factionById(territory.ownerFactionId);
+  return owner
+    ? `Controlled by ${owner.name}`
+    : "Neutral territory";
+}
+
+function territoryStatsMarkup(territory) {
+  const stats = territory?.stats ?? {
+    economy: 74,
+    defense: 58,
+    mobility: 82,
+    strategicValue: 77
+  };
+
+  return `
+    ${statItem("Economy", stats.economy)}
+    ${statItem("Defense", stats.defense)}
+    ${statItem("Mobility", stats.mobility)}
+    ${statItem("Value", stats.strategicValue)}
+  `;
+}
+
+function statItem(label, value) {
+  return `
+    <div class="stat-item">
+      <span>${label}</span>
+      <strong>${Math.round(value)}</strong>
+    </div>
+  `;
+}
+
+function leaderboardMarkup() {
+  const rows = state.matchSnapshot?.leaderboard;
+  const fallbackRows = [
+    { factionName: "You", mapControlPercentage: 18, eliminationCount: 0, color: "#1f8a70" },
+    { factionName: "Player 2", mapControlPercentage: 14, eliminationCount: 0, color: "#2f6fbd" },
+    { factionName: "NPC-1", mapControlPercentage: 9, eliminationCount: 0, color: "#c58a1a" }
+  ];
+
+  return (rows?.length ? rows : fallbackRows).slice(0, 6).map(row => {
+    const control = Math.round(row.mapControlPercentage);
+    const color = row.color ?? factionById(row.factionId)?.color ?? "#1f8a70";
+    return `
+      <div class="leader-entry">
+        <span class="leader-swatch" style="--swatch:${escapeHtml(color)}"></span>
+        <strong>${escapeHtml(row.factionName)}</strong>
+        <span>${control}%</span>
+        <small>${row.eliminationCount} elim</small>
+        <div class="bar"><div class="fill" style="--w:${control}%; --fill:${escapeHtml(color)}"></div></div>
+      </div>
+    `;
+  }).join("");
+}
+
+function factionById(factionId) {
+  if (!factionId || !state.matchSnapshot?.factions) {
+    return null;
+  }
+
+  return state.matchSnapshot.factions.find(faction => faction.id === factionId) ?? null;
 }
 
 async function loadGames() {
@@ -158,6 +377,31 @@ async function loadGames() {
   } finally {
     state.loading = false;
     render();
+  }
+}
+
+async function loadMatchSnapshot() {
+  if (state.matchLoading || state.matchSnapshot || state.matchError) {
+    return;
+  }
+
+  state.matchLoading = true;
+  updateMatchSummary();
+
+  try {
+    const response = await fetch("/api/prototype/cardiff");
+    if (!response.ok) {
+      throw new Error(`The prototype API returned HTTP ${response.status}.`);
+    }
+
+    state.matchSnapshot = await response.json();
+  } catch (error) {
+    state.matchError = error instanceof Error ? error.message : "Prototype match data could not be loaded.";
+  } finally {
+    state.matchLoading = false;
+    if (isMatchRoute()) {
+      updateMatchDataInPlace();
+    }
   }
 }
 
@@ -213,7 +457,249 @@ function route() {
 }
 
 function render() {
+  disposeMapIfLeavingMatch();
   app.innerHTML = route();
+  if (isMatchRoute()) {
+    initMatchPage();
+  }
+}
+
+function initMatchPage() {
+  void loadMatchSnapshot();
+  initMap();
+}
+
+function initMap() {
+  const container = document.querySelector("#match-map");
+  const fallback = document.querySelector("[data-map-fallback]");
+  if (!container || mapInitializedForPath === window.location.pathname) {
+    return;
+  }
+
+  if (activeMap) {
+    activeMap.remove();
+    activeMap = null;
+  }
+
+  if (!window.maplibregl) {
+    fallback?.classList.add("is-visible");
+    return;
+  }
+
+  try {
+    activeMap = new window.maplibregl.Map({
+      container,
+      center: currentMapDetails().center,
+      zoom: 11.2,
+      minZoom: 10,
+      maxZoom: 15.5,
+      maxBounds: currentMapDetails().cameraBounds,
+      pitch: 35,
+      bearing: -12,
+      attributionControl: true,
+      style: {
+        version: 8,
+        sources: {
+          osm: {
+            type: "raster",
+            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tileSize: 256,
+            attribution: "&copy; OpenStreetMap contributors"
+          }
+        },
+        layers: [
+          {
+            id: "osm",
+            type: "raster",
+            source: "osm"
+          }
+        ]
+      }
+    });
+    activeMap.addControl(new window.maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+    activeMap.once("load", () => {
+      addPlayAreaBoundary(activeMap);
+      activeMap.fitBounds(currentMapDetails().cameraBounds, {
+        padding: { top: 84, right: 52, bottom: 64, left: 52 },
+        maxZoom: 11.5,
+        duration: 0
+      });
+      fallback?.classList.remove("is-visible");
+    });
+    mapInitializedForPath = window.location.pathname;
+  } catch (error) {
+    fallback?.classList.add("is-visible");
+  }
+}
+
+function addPlayAreaBoundary(map) {
+  const mapDetails = currentMapDetails();
+  const boundary = playAreaBoundaryFeature(mapDetails);
+  const mask = outOfBoundsMaskFeature(mapDetails);
+
+  if (map.getSource("out-of-bounds")) {
+    map.getSource("out-of-bounds").setData(mask);
+  } else {
+    map.addSource("out-of-bounds", {
+      type: "geojson",
+      data: mask
+    });
+
+    map.addLayer({
+      id: "out-of-bounds-mask",
+      type: "fill",
+      source: "out-of-bounds",
+      paint: {
+        "fill-color": "#6f7780",
+        "fill-opacity": 0.52
+      }
+    });
+  }
+
+  if (map.getSource("play-area")) {
+    map.getSource("play-area").setData(boundary);
+    return;
+  }
+
+  map.addSource("play-area", {
+    type: "geojson",
+    data: boundary
+  });
+
+  map.addLayer({
+    id: "play-area-fill",
+    type: "fill",
+    source: "play-area",
+    paint: {
+      "fill-color": "#1f8a70",
+      "fill-opacity": 0.08
+    }
+  });
+
+  map.addLayer({
+    id: "play-area-outline",
+    type: "line",
+    source: "play-area",
+    paint: {
+      "line-color": "#14202a",
+      "line-width": 3,
+      "line-opacity": 0.92,
+      "line-dasharray": [2, 1]
+    }
+  });
+}
+
+function currentMapDetails() {
+  return MAP_DETAILS.cardiff;
+}
+
+function playAreaBoundaryFeature(mapDetails) {
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {
+          name: `${mapDetails.name} play area`
+        },
+        geometry: {
+          type: "Polygon",
+          coordinates: [mapDetails.boundaryCoordinates]
+        }
+      }
+    ]
+  };
+}
+
+function outOfBoundsMaskFeature(mapDetails) {
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {
+          name: `${mapDetails.name} out of bounds`
+        },
+        geometry: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [-180, -85],
+              [180, -85],
+              [180, 85],
+              [-180, 85],
+              [-180, -85]
+            ],
+            mapDetails.boundaryCoordinates
+          ]
+        }
+      }
+    ]
+  };
+}
+
+function disposeMapIfLeavingMatch() {
+  if (isMatchRoute()) {
+    return;
+  }
+
+  if (activeMap) {
+    activeMap.remove();
+    activeMap = null;
+  }
+  mapInitializedForPath = null;
+}
+
+function isMatchRoute() {
+  const path = window.location.pathname;
+  return path.startsWith("/games/") && path !== "/games/create" && path !== "/games/cardiff/lobby";
+}
+
+function updateMatchSummary() {
+  const summary = document.querySelector("[data-match-summary]");
+  if (summary) {
+    summary.textContent = matchSummaryText();
+  }
+}
+
+function updateMatchDataInPlace() {
+  updateMatchSummary();
+
+  const status = document.querySelector("[data-match-status]");
+  if (status) {
+    status.textContent = state.matchError ? "Offline" : "Prototype";
+  }
+
+  const selected = selectedTerritory();
+  const selectedName = document.querySelector("[data-selected-name]");
+  if (selectedName && selected) {
+    selectedName.textContent = selected.name;
+  }
+
+  const selectedOwner = document.querySelector("[data-selected-owner]");
+  if (selectedOwner) {
+    selectedOwner.textContent = selectedTerritoryOwnerText();
+  }
+
+  const selectedStats = document.querySelector("[data-selected-stats]");
+  if (selectedStats) {
+    selectedStats.innerHTML = territoryStatsMarkup(selected);
+  }
+
+  const leaderboard = document.querySelector("[data-leaderboard]");
+  if (leaderboard) {
+    leaderboard.innerHTML = leaderboardMarkup();
+  }
+
+  const mapArea = document.querySelector("[data-map-area]");
+  if (mapArea && state.matchSnapshot) {
+    mapArea.textContent = state.matchSnapshot.mapArea;
+  }
+
+  const territoryCount = document.querySelector("[data-territory-count]");
+  if (territoryCount && state.matchSnapshot) {
+    territoryCount.textContent = String(state.matchSnapshot.territories.length);
+  }
 }
 
 function matchRoute(game) {
@@ -254,6 +740,11 @@ app.addEventListener("click", event => {
 
   if (target.dataset.action === "retry-list") {
     void loadGames();
+    return;
+  }
+
+  if (target.dataset.action === "toggle-widget") {
+    toggleWidget(target.dataset.widget);
   }
 });
 
