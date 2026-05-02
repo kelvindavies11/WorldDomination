@@ -5,7 +5,7 @@ namespace Game.Application;
 
 public sealed class CardiffPostcodeTerritoryRepository
 {
-    private const double PolygonHalfSizeDegrees = 0.00042;
+    private const double BoundaryPaddingDegrees = 0.003;
     private const string DataFileName = "cardiff-postcodes.csv";
 
     public IReadOnlyList<PostcodeTerritoryFeature> Load()
@@ -40,7 +40,7 @@ public sealed class CardiffPostcodeTerritoryRepository
             .Select((header, index) => new { Header = header, Index = index })
             .ToDictionary(item => item.Header, item => item.Index, StringComparer.OrdinalIgnoreCase);
 
-        var features = new List<PostcodeTerritoryFeature>();
+        var rows = new List<PostcodeRow>();
         while (!parser.EndOfData)
         {
             var fields = parser.ReadFields();
@@ -66,18 +66,97 @@ public sealed class CardiffPostcodeTerritoryRepository
             }
 
             var road = FirstRoad(Field(fields, indexes, "Roads"));
-            features.Add(new PostcodeTerritoryFeature(
+            rows.Add(new PostcodeRow(
                 postcode,
                 string.IsNullOrWhiteSpace(road) ? postcode : $"{postcode} - {road}",
-                CreateSquare(longitude, latitude),
                 latitude,
                 longitude,
                 string.IsNullOrWhiteSpace(road) ? null : road));
         }
 
-        return features
+        return CreateTessellatedFeatures(rows)
             .OrderBy(feature => feature.Postcode, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static IReadOnlyList<PostcodeTerritoryFeature> CreateTessellatedFeatures(IReadOnlyList<PostcodeRow> rows)
+    {
+        if (rows.Count == 0)
+        {
+            return [];
+        }
+
+        var orderedRows = rows
+            .OrderByDescending(row => row.Latitude)
+            .ThenBy(row => row.Longitude)
+            .ThenBy(row => row.Postcode, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var columns = ChooseColumnCount(orderedRows.Length);
+        var rowCount = orderedRows.Length / columns;
+        var minLongitude = orderedRows.Min(row => row.Longitude) - BoundaryPaddingDegrees;
+        var maxLongitude = orderedRows.Max(row => row.Longitude) + BoundaryPaddingDegrees;
+        var minLatitude = orderedRows.Min(row => row.Latitude) - BoundaryPaddingDegrees;
+        var maxLatitude = orderedRows.Max(row => row.Latitude) + BoundaryPaddingDegrees;
+        var cellWidth = (maxLongitude - minLongitude) / columns;
+        var cellHeight = (maxLatitude - minLatitude) / rowCount;
+        var features = new List<PostcodeTerritoryFeature>(orderedRows.Length);
+
+        for (var index = 0; index < orderedRows.Length; index++)
+        {
+            var row = orderedRows[index];
+            var gridRow = index / columns;
+            var gridColumn = index % columns;
+            var west = minLongitude + gridColumn * cellWidth;
+            var east = west + cellWidth;
+            var north = maxLatitude - gridRow * cellHeight;
+            var south = north - cellHeight;
+            var middleLongitude = (west + east) / 2;
+            var middleLatitude = (south + north) / 2;
+
+            features.Add(new PostcodeTerritoryFeature(
+                row.Postcode,
+                row.Name,
+                [
+                    new(west, south),
+                    new(middleLongitude, south),
+                    new(east, south),
+                    new(east, middleLatitude),
+                    new(east, north),
+                    new(middleLongitude, north),
+                    new(west, north),
+                    new(west, middleLatitude),
+                    new(west, south)
+                ],
+                row.Latitude,
+                row.Longitude,
+                row.Road));
+        }
+
+        return features;
+    }
+
+    private static int ChooseColumnCount(int territoryCount)
+    {
+        var target = Math.Sqrt(territoryCount);
+        var best = 1;
+        var bestDistance = double.MaxValue;
+        for (var candidate = 1; candidate <= territoryCount; candidate++)
+        {
+            if (territoryCount % candidate != 0)
+            {
+                continue;
+            }
+
+            var distance = Math.Abs(candidate - target);
+            if (distance < bestDistance)
+            {
+                best = candidate;
+                bestDistance = distance;
+            }
+        }
+
+        return best;
     }
 
     private static string Field(string[] fields, IReadOnlyDictionary<string, int> indexes, string name)
@@ -97,12 +176,10 @@ public sealed class CardiffPostcodeTerritoryRepository
             .FirstOrDefault() ?? string.Empty;
     }
 
-    private static IReadOnlyList<MapCoordinateDto> CreateSquare(double longitude, double latitude) =>
-    [
-        new(longitude - PolygonHalfSizeDegrees, latitude - PolygonHalfSizeDegrees),
-        new(longitude + PolygonHalfSizeDegrees, latitude - PolygonHalfSizeDegrees),
-        new(longitude + PolygonHalfSizeDegrees, latitude + PolygonHalfSizeDegrees),
-        new(longitude - PolygonHalfSizeDegrees, latitude + PolygonHalfSizeDegrees),
-        new(longitude - PolygonHalfSizeDegrees, latitude - PolygonHalfSizeDegrees)
-    ];
+    private sealed record PostcodeRow(
+        string Postcode,
+        string Name,
+        double Latitude,
+        double Longitude,
+        string? Road);
 }
