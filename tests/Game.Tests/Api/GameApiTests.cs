@@ -49,4 +49,27 @@ public sealed class GameApiTests
         Assert.NotNull(games);
         Assert.Contains(games, game => game.Id == created.Id && game.Status == "Open");
     }
+
+    [Fact]
+    public async Task DeleteGameEndpointRemovesGameFromAvailableGames()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient();
+
+        var createResponse = await client.PostAsJsonAsync("/api/games", new CreateGameRequest(
+            Name: "Short Cardiff",
+            MapArea: "Cardiff",
+            MaxHumanPlayers: 2,
+            NpcFactions: 4,
+            TerritoryCount: 80));
+        var created = await createResponse.Content.ReadFromJsonAsync<AvailableGameDto>();
+
+        Assert.NotNull(created);
+        var deleteResponse = await client.DeleteAsync($"/api/games/{created.Id}");
+        var games = await client.GetFromJsonAsync<IReadOnlyList<AvailableGameDto>>("/api/games");
+
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+        Assert.NotNull(games);
+        Assert.DoesNotContain(games, game => game.Id == created.Id);
+    }
 }

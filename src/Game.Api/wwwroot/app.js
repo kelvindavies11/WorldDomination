@@ -1,4 +1,6 @@
 import { captureExpansionFillPaint, ownerColorForTerritory, territoryFillPaint } from "./mapOwnershipStyles.mjs";
+import { routeBetween as findRouteBetween, validTargetTerritoryIds as findValidTargetTerritoryIds } from "./matchRoutes.mjs";
+import { widgetHiddenClass, widgetToggleLabel } from "./widgetVisibility.mjs";
 
 const app = document.querySelector("#app");
 
@@ -18,7 +20,8 @@ const state = {
   selectedMovementStrength: 1,
   movementSubmitting: false,
   movementError: null,
-  collapsedWidgets: new Set()
+  collapsedWidgets: new Set(["game-menu"]),
+  hiddenWidgets: new Set(["leaderboard"])
 };
 
 let activeMap = null;
@@ -174,7 +177,7 @@ function renderMatchPage() {
           </div>
         </div>
 
-        <aside class="floating-widget selected-territory-widget ${widgetCollapsedClass("selected-territory")}" aria-label="Selected territory">
+        <aside class="floating-widget selected-territory-widget ${widgetCollapsedClass("selected-territory")} ${gameWidgetHiddenClass("selected-territory")}" aria-label="Selected territory">
           <button class="widget-toggle" type="button" data-action="toggle-widget" data-widget="selected-territory" aria-expanded="${!isWidgetCollapsed("selected-territory")}">
             <span>
               <span class="eyebrow">Selected territory</span>
@@ -205,7 +208,7 @@ function renderMatchPage() {
           </div>
         </aside>
 
-        <aside class="floating-widget leaderboard-widget ${widgetCollapsedClass("leaderboard")}" aria-label="Leaderboard and match status">
+        <aside class="floating-widget leaderboard-widget ${widgetCollapsedClass("leaderboard")} ${gameWidgetHiddenClass("leaderboard")}" aria-label="Leaderboard and match status">
           <button class="widget-toggle" type="button" data-action="toggle-widget" data-widget="leaderboard" aria-expanded="${!isWidgetCollapsed("leaderboard")}">
             <span>
               <span class="eyebrow">Leaderboard</span>
@@ -232,6 +235,22 @@ function renderMatchPage() {
             </div>
           </div>
         </aside>
+
+        <aside class="floating-widget game-menu-widget ${widgetCollapsedClass("game-menu")}" aria-label="Game menu">
+          <button class="burger-toggle" type="button" data-action="toggle-widget" data-widget="game-menu" aria-expanded="${!isWidgetCollapsed("game-menu")}" aria-label="Open game menu">
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+          </button>
+          <div class="widget-body" data-widget-body>
+            <div class="actions menu-actions">
+              <button type="button" class="secondary" data-action="toggle-game-widget" data-widget-target="leaderboard">${gameWidgetToggleLabel("leaderboard", "Leaderboard")}</button>
+              <button type="button" class="secondary" data-action="toggle-game-widget" data-widget-target="selected-territory">${gameWidgetToggleLabel("selected-territory", "Selected Territory")}</button>
+              <button type="button" class="secondary" data-action="back-to-lobby">Back to Lobby</button>
+              <button type="button" class="danger" data-action="end-game">End Game</button>
+            </div>
+          </div>
+        </aside>
       </div>
     </section>
   `);
@@ -243,6 +262,14 @@ function isWidgetCollapsed(widget) {
 
 function widgetCollapsedClass(widget) {
   return isWidgetCollapsed(widget) ? "is-collapsed" : "";
+}
+
+function gameWidgetHiddenClass(widget) {
+  return widgetHiddenClass(state.hiddenWidgets, widget);
+}
+
+function gameWidgetToggleLabel(widget, label) {
+  return widgetToggleLabel(state.hiddenWidgets, widget, label);
 }
 
 function toggleWidget(widget) {
@@ -339,15 +366,7 @@ function armyStrengthForTerritory(territoryId, factionId) {
 }
 
 function validTargetTerritoryIds(sourceId = state.selectedSourceTerritoryId) {
-  if (!sourceId || !state.matchSnapshot) {
-    return [];
-  }
-
-  const territoriesById = new Map(state.matchSnapshot.territories.map(territory => [territory.id, territory]));
-  return state.matchSnapshot.routes
-    .filter(route => route.isAllowed && (route.sourceTerritoryId === sourceId || route.destinationTerritoryId === sourceId))
-    .map(route => route.sourceTerritoryId === sourceId ? route.destinationTerritoryId : route.sourceTerritoryId)
-    .filter(id => territoriesById.get(id)?.ownerFactionId == null);
+  return findValidTargetTerritoryIds(state.matchSnapshot, sourceId);
 }
 
 function movementPanelMarkup() {
@@ -395,9 +414,65 @@ function movementPanelMarkup() {
 }
 
 function routeBetween(sourceId, targetId) {
-  return state.matchSnapshot?.routes?.find(route =>
-    route.sourceTerritoryId === sourceId && route.destinationTerritoryId === targetId ||
-    route.sourceTerritoryId === targetId && route.destinationTerritoryId === sourceId) ?? null;
+  return findRouteBetween(state.matchSnapshot, sourceId, targetId);
+}
+
+function returnToLobby() {
+  state.matchSnapshot = null;
+  state.matchSnapshotGameId = null;
+  state.matchError = null;
+  state.selectedTerritoryId = null;
+  state.selectedSourceTerritoryId = null;
+  state.selectedTargetTerritoryId = null;
+  state.selectedMovementStrength = 1;
+  window.history.pushState({}, "", routes.games);
+  render();
+}
+
+async function endCurrentGame() {
+  const gameId = currentGameId();
+  try {
+    const response = await fetch(`/api/games/${encodeURIComponent(gameId)}`, { method: "DELETE" });
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`The API returned HTTP ${response.status}.`);
+    }
+
+    state.games = [];
+    returnToLobby();
+  } catch (error) {
+    state.movementError = error instanceof Error ? error.message : "The game could not be ended.";
+    updateMatchDataInPlace();
+  }
+}
+
+function toggleGameWidgetVisibility(widget) {
+  if (widget !== "leaderboard" && widget !== "selected-territory") {
+    return;
+  }
+
+  if (state.hiddenWidgets.has(widget)) {
+    state.hiddenWidgets.delete(widget);
+  } else {
+    state.hiddenWidgets.add(widget);
+  }
+
+  const widgetElement = document.querySelector(`.${widgetClassName(widget)}`);
+  if (widgetElement) {
+    widgetElement.classList.toggle("is-hidden-by-menu", state.hiddenWidgets.has(widget));
+  }
+
+  const toggle = document.querySelector(`[data-action='toggle-game-widget'][data-widget-target='${widget}']`);
+  if (toggle) {
+    toggle.textContent = gameWidgetToggleLabel(widget, toggle.dataset.widgetLabel ?? defaultWidgetLabel(widget));
+  }
+}
+
+function widgetClassName(widget) {
+  return `${widget}-widget`;
+}
+
+function defaultWidgetLabel(widget) {
+  return widget === "selected-territory" ? "Selected Territory" : "Leaderboard";
 }
 
 function validTargetsMarkup(targetIds) {
@@ -1338,6 +1413,21 @@ app.addEventListener("click", event => {
 
   if (target.dataset.action === "send-movement") {
     void sendMovement();
+    return;
+  }
+
+  if (target.dataset.action === "back-to-lobby") {
+    returnToLobby();
+    return;
+  }
+
+  if (target.dataset.action === "end-game") {
+    void endCurrentGame();
+    return;
+  }
+
+  if (target.dataset.action === "toggle-game-widget") {
+    toggleGameWidgetVisibility(target.dataset.widgetTarget);
     return;
   }
 

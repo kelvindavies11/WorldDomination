@@ -44,6 +44,11 @@ app.MapPost("/api/games", (CreateGameRequest request, GameLobbyService service) 
     }
 });
 
+app.MapDelete("/api/games/{gameId}", (string gameId, GameLobbyService service) =>
+    service.EndGame(gameId)
+        ? Results.NoContent()
+        : Results.NotFound(new { error = "Game was not found." }));
+
 app.MapFallback(context =>
 {
     if (context.Request.Path.StartsWithSegments("/api"))

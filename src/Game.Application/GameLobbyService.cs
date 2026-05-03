@@ -73,4 +73,16 @@ public sealed class GameLobbyService
         games.Add(game);
         return game;
     }
+
+    public bool EndGame(string gameId)
+    {
+        var game = games.FirstOrDefault(item => string.Equals(item.Id, gameId.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (game is null)
+        {
+            return false;
+        }
+
+        games.Remove(game);
+        return true;
+    }
 }
