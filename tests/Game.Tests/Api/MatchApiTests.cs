@@ -129,7 +129,9 @@ public sealed class MatchApiTests
         Assert.Contains("hoveredTerritoryId", appScript);
         Assert.Contains("matchSnapshot?.territories", appScript);
         Assert.DoesNotContain("map?.territories", appScript);
-        Assert.Contains("\"fill-opacity\": 0.22", appScript);
+        Assert.Contains("territoryFillPaint()", appScript);
+        Assert.Contains("ownerColorForTerritory", appScript);
+        Assert.Contains("ownerColor", appScript);
         Assert.Contains("data-widget-body", appScript);
         Assert.Contains("collapsedWidgets", appScript);
         Assert.Contains("updateWidgetCollapseState", appScript);

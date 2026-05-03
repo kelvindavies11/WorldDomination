@@ -1,3 +1,5 @@
+import { ownerColorForTerritory, territoryFillPaint } from "./mapOwnershipStyles.mjs";
+
 const app = document.querySelector("#app");
 
 const state = {
@@ -557,10 +559,7 @@ function addTerritoryLayers(map) {
       id: "territory-fill",
       type: "fill",
       source: "territories",
-      paint: {
-        "fill-color": "#dceee8",
-        "fill-opacity": 0.22
-      }
+      paint: territoryFillPaint()
     });
   }
 
@@ -657,7 +656,7 @@ function territoryFeatureCollection() {
     features: territories
       .filter(territory => territory.boundaryCoordinates?.length >= 4)
       .map(territory => {
-        const color = factionById(territory.ownerFactionId)?.color ?? "#1f8a70";
+        const ownerColor = ownerColorForTerritory(territory, state.matchSnapshot?.factions ?? []);
         return {
           type: "Feature",
           properties: {
@@ -665,7 +664,7 @@ function territoryFeatureCollection() {
             name: territory.name,
             postcode: territory.postcode,
             ownerFactionId: territory.ownerFactionId ?? null,
-            color
+            ownerColor
           },
           geometry: {
             type: "Polygon",
