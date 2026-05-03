@@ -71,6 +71,7 @@ public sealed class CardiffMatchService
         return new MatchSnapshot(
             GameId: "cardiff-match",
             MapArea: map.Name,
+            SnapshotGeneratedAtUtc: DateTimeOffset.UtcNow,
             Map: map,
             Factions: factions,
             Territories: territories,
@@ -129,9 +130,9 @@ public sealed class CardiffMatchService
             AreaSquareKm: features.AreaSquareKm,
             OwnerFactionId: ownerFactionId,
             Stats: TerritoryStatCalculator.Calculate(features, Ruleset.Default),
+            Postcode: feature.Postcode,
             Features: features,
-            BoundaryCoordinates: feature.BoundaryCoordinates,
-            Postcode: feature.Postcode);
+            BoundaryCoordinates: feature.BoundaryCoordinates);
     }
 
     private static IReadOnlyList<MatchRouteDto> CreateRoutes(IReadOnlyList<MatchTerritoryDto> territories)

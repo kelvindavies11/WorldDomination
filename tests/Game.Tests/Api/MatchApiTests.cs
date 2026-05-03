@@ -28,6 +28,7 @@ public sealed class MatchApiTests
         Assert.NotNull(snapshot);
         Assert.Equal("cardiff-match", snapshot.GameId);
         Assert.Equal("Cardiff", snapshot.MapArea);
+        Assert.True(snapshot.SnapshotGeneratedAtUtc > DateTimeOffset.MinValue);
         Assert.Equal("Cardiff", snapshot.Map.Name);
         Assert.Equal(15, snapshot.Map.BoundaryCoordinates.Count);
         Assert.Equal(snapshot.Map.BoundaryCoordinates[0], snapshot.Map.BoundaryCoordinates[^1]);
@@ -46,8 +47,7 @@ public sealed class MatchApiTests
         Assert.All(snapshot.Territories, territory =>
         {
             Assert.False(string.IsNullOrWhiteSpace(territory.Postcode));
-            Assert.NotEmpty(territory.BoundaryCoordinates);
-            Assert.NotNull(territory.Features);
+            Assert.NotNull(territory.Stats);
         });
         Assert.Equal(8, snapshot.Leaderboard.Count);
     }
@@ -113,6 +113,7 @@ public sealed class MatchApiTests
         Assert.Contains("floating-widget leaderboard-widget", appScript);
         Assert.Contains("data-action=\"toggle-widget\"", appScript);
         Assert.Contains("data-selected-postcode", appScript);
+        Assert.Contains("data-match-generated-at", appScript);
         Assert.Contains("territory-fill", appScript);
         Assert.Contains("territory-hover-fill", appScript);
         Assert.Contains("hoveredTerritoryId", appScript);

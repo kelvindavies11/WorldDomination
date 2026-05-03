@@ -11,6 +11,7 @@ public enum FactionKind
 public sealed record MatchSnapshot(
     string GameId,
     string MapArea,
+    DateTimeOffset SnapshotGeneratedAtUtc,
     MatchMapDto Map,
     IReadOnlyList<MatchFactionDto> Factions,
     IReadOnlyList<MatchTerritoryDto> Territories,
@@ -51,9 +52,9 @@ public sealed record MatchTerritoryDto(
     double AreaSquareKm,
     string? OwnerFactionId,
     TerritoryStats Stats,
+    string? Postcode,
     TerritoryFeatureSummary Features,
-    IReadOnlyList<MapCoordinateDto> BoundaryCoordinates,
-    string? Postcode);
+    IReadOnlyList<MapCoordinateDto> BoundaryCoordinates);
 
 public sealed record MatchArmyDto(
     string Id,
