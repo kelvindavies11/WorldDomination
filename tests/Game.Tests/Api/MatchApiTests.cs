@@ -33,23 +33,33 @@ public sealed class MatchApiTests
         Assert.Equal(15, snapshot.Map.BoundaryCoordinates.Count);
         Assert.Equal(snapshot.Map.BoundaryCoordinates[0], snapshot.Map.BoundaryCoordinates[^1]);
         Assert.True(snapshot.Territories.Count >= 58);
-        Assert.Equal(snapshot.Territories.Count, snapshot.Map.Territories.Count);
-        Assert.Contains(snapshot.Map.Territories, territory => territory.Postcode == "CF64 1");
-        Assert.Contains(snapshot.Map.Territories, territory => territory.Postcode == "CF64 4");
-        Assert.Contains(snapshot.Map.Territories, territory => territory.Postcode == "CF5 6");
-        Assert.All(snapshot.Map.Territories, territory =>
-        {
-            Assert.False(string.IsNullOrWhiteSpace(territory.Postcode));
-            Assert.NotEmpty(territory.BoundaryCoordinates);
-            Assert.NotNull(territory.Features);
-            Assert.NotNull(territory.Stats);
-        });
+        Assert.Contains(snapshot.Territories, territory => territory.Postcode == "CF64 1");
+        Assert.Contains(snapshot.Territories, territory => territory.Postcode == "CF64 4");
+        Assert.Contains(snapshot.Territories, territory => territory.Postcode == "CF5 6");
         Assert.All(snapshot.Territories, territory =>
         {
             Assert.False(string.IsNullOrWhiteSpace(territory.Postcode));
             Assert.NotNull(territory.Stats);
+            Assert.NotEmpty(territory.BoundaryCoordinates);
         });
         Assert.Equal(8, snapshot.Leaderboard.Count);
+    }
+
+    [Fact]
+    public async Task CardiffMatchEndpointKeepsTerritoriesAtOneLevel()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient();
+
+        using var document = JsonDocument.Parse(await client.GetStringAsync("/api/matches/cardiff"));
+        var root = document.RootElement;
+        var map = root.GetProperty("map");
+        var territory = root.GetProperty("territories")[0];
+
+        Assert.False(map.TryGetProperty("territories", out _));
+        Assert.True(territory.TryGetProperty("boundaryCoordinates", out _));
+        Assert.True(territory.TryGetProperty("ownerFactionId", out _));
+        Assert.True(territory.TryGetProperty("stats", out _));
     }
 
     [Fact]
@@ -117,7 +127,8 @@ public sealed class MatchApiTests
         Assert.Contains("territory-fill", appScript);
         Assert.Contains("territory-hover-fill", appScript);
         Assert.Contains("hoveredTerritoryId", appScript);
-        Assert.Contains("map?.territories", appScript);
+        Assert.Contains("matchSnapshot?.territories", appScript);
+        Assert.DoesNotContain("map?.territories", appScript);
         Assert.Contains("\"fill-opacity\": 0.22", appScript);
         Assert.Contains("data-widget-body", appScript);
         Assert.Contains("collapsedWidgets", appScript);

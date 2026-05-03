@@ -21,6 +21,22 @@ export type MatchTerritory = {
   areaSquareKm: number;
   ownerFactionId: string | null;
   stats: TerritoryStats;
+  postcode: string;
+  features: Record<string, number>;
+  boundaryCoordinates: MapCoordinate[];
+};
+
+export type MapCoordinate = {
+  longitude: number;
+  latitude: number;
+};
+
+export type MatchMap = {
+  id: string;
+  name: string;
+  center: MapCoordinate;
+  cameraBounds: MapCoordinate[];
+  boundaryCoordinates: MapCoordinate[];
 };
 
 export type MatchArmy = {
@@ -51,6 +67,7 @@ export type MatchSnapshot = {
   gameId: string;
   mapArea: string;
   snapshotGeneratedAtUtc: string;
+  map: MatchMap;
   factions: MatchFaction[];
   territories: MatchTerritory[];
   armies: MatchArmy[];

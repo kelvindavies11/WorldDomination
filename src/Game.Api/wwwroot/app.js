@@ -651,21 +651,20 @@ function addTerritoryLayers(map) {
 }
 
 function territoryFeatureCollection() {
-  const mapTerritories = state.matchSnapshot?.map?.territories ?? [];
+  const territories = state.matchSnapshot?.territories ?? [];
   return {
     type: "FeatureCollection",
-    features: mapTerritories
+    features: territories
       .filter(territory => territory.boundaryCoordinates?.length >= 4)
       .map(territory => {
-        const liveTerritory = state.matchSnapshot?.territories?.find(item => item.id === territory.id);
-        const color = factionById(liveTerritory?.ownerFactionId)?.color ?? "#1f8a70";
+        const color = factionById(territory.ownerFactionId)?.color ?? "#1f8a70";
         return {
           type: "Feature",
           properties: {
             id: territory.id,
             name: territory.name,
             postcode: territory.postcode,
-            ownerFactionId: liveTerritory?.ownerFactionId ?? null,
+            ownerFactionId: territory.ownerFactionId ?? null,
             color
           },
           geometry: {

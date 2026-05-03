@@ -24,15 +24,6 @@ public sealed record MatchMapDto(
     string Name,
     MapCoordinateDto Center,
     IReadOnlyList<MapCoordinateDto> CameraBounds,
-    IReadOnlyList<MapCoordinateDto> BoundaryCoordinates,
-    IReadOnlyList<MapTerritoryDto> Territories);
-
-public sealed record MapTerritoryDto(
-    string Id,
-    string Name,
-    string Postcode,
-    TerritoryStats Stats,
-    TerritoryFeatureSummary Features,
     IReadOnlyList<MapCoordinateDto> BoundaryCoordinates);
 
 public sealed record MapCoordinateDto(

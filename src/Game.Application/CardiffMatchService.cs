@@ -38,18 +38,6 @@ public sealed class CardiffMatchService
                 factionByStartIndex.GetValueOrDefault(index),
                 territoryFeatures))
             .ToList();
-        map = map with
-        {
-            Territories = territories
-                .Select(territory => new MapTerritoryDto(
-                    territory.Id,
-                    territory.Name,
-                    territory.Postcode ?? territory.Name,
-                    territory.Stats,
-                    territory.Features,
-                    territory.BoundaryCoordinates))
-                .ToList()
-        };
         var armies = startIndexes
             .Select(pair => new MatchArmyDto(
                 Id: $"army-{pair.Key}",
