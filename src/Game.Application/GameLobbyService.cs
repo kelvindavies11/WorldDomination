@@ -19,18 +19,7 @@ public sealed record CreateGameRequest(
 
 public sealed class GameLobbyService
 {
-    private readonly List<AvailableGameDto> games =
-    [
-        new(
-            Id: "cardiff-match",
-            Name: "Cardiff Match",
-            Status: "Open",
-            MapArea: "Cardiff",
-            HumanPlayers: 1,
-            MaxHumanPlayers: 2,
-            NpcFactions: 6,
-            TerritoryCount: 100)
-    ];
+    private readonly List<AvailableGameDto> games = [];
 
     private int nextGameNumber = 1;
 

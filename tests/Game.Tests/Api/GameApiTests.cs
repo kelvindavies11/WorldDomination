@@ -8,7 +8,7 @@ namespace Game.Tests.Api;
 public sealed class GameApiTests
 {
     [Fact]
-    public async Task AvailableGamesEndpointReturnsOpenCardiffMatch()
+    public async Task AvailableGamesEndpointReturnsEmptyListOnFirstLoad()
     {
         await using var factory = new WebApplicationFactory<Program>();
         using var client = factory.CreateClient();
@@ -18,13 +18,7 @@ public sealed class GameApiTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(games);
-        var game = Assert.Single(games);
-        Assert.Equal("cardiff-match", game.Id);
-        Assert.Equal("Cardiff Match", game.Name);
-        Assert.Equal("Open", game.Status);
-        Assert.Equal("Cardiff", game.MapArea);
-        Assert.Equal(1, game.HumanPlayers);
-        Assert.Equal(2, game.MaxHumanPlayers);
+        Assert.Empty(games);
     }
 
     [Fact]
