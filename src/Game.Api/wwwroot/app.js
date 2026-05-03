@@ -157,7 +157,7 @@ function renderMatchPage() {
           <div class="map-overlay top-left">
             <span class="map-chip">OSM base</span>
             <span class="map-chip">Playing area</span>
-            <span class="map-chip" data-match-status>${state.matchLoading ? "Syncing" : "Live"}</span>
+            <span class="map-chip" data-match-status>${state.matchLoading ? "Syncing" : matchSnapshotTimeText()}</span>
           </div>
           <div class="map-overlay bottom-right">
             <span>Cardiff</span>
@@ -215,6 +215,7 @@ function renderMatchPage() {
                 <div><span>Territories</span><strong data-territory-count>${state.matchSnapshot?.territories?.length ?? "100"}</strong></div>
                 <div><span>Players</span><strong>2 human</strong></div>
                 <div><span>NPCs</span><strong>6</strong></div>
+                <div><span>Snapshot</span><strong data-match-generated-at>${matchSnapshotTimeText()}</strong></div>
               </div>
             </div>
           </div>
@@ -273,6 +274,10 @@ function matchSummaryText() {
   }
 
   return `${state.matchSnapshot.mapArea} match: ${state.matchSnapshot.territories.length} territories and ${state.matchSnapshot.leaderboard.length} factions.`;
+}
+
+function matchSnapshotTimeText() {
+  return state.matchSnapshot?.snapshotGeneratedAtUtc ?? "Awaiting API snapshot";
 }
 
 function selectedTerritory() {
@@ -646,21 +651,21 @@ function addTerritoryLayers(map) {
 }
 
 function territoryFeatureCollection() {
-  const mapTerritories = state.matchSnapshot?.map?.territories;
-  const territories = mapTerritories?.length ? mapTerritories : state.matchSnapshot?.territories ?? [];
+  const mapTerritories = state.matchSnapshot?.map?.territories ?? [];
   return {
     type: "FeatureCollection",
-    features: territories
+    features: mapTerritories
       .filter(territory => territory.boundaryCoordinates?.length >= 4)
       .map(territory => {
-        const color = factionById(territory.ownerFactionId)?.color ?? "#1f8a70";
+        const liveTerritory = state.matchSnapshot?.territories?.find(item => item.id === territory.id);
+        const color = factionById(liveTerritory?.ownerFactionId)?.color ?? "#1f8a70";
         return {
           type: "Feature",
           properties: {
             id: territory.id,
             name: territory.name,
             postcode: territory.postcode,
-            ownerFactionId: territory.ownerFactionId,
+            ownerFactionId: liveTerritory?.ownerFactionId ?? null,
             color
           },
           geometry: {
@@ -825,7 +830,7 @@ function updateMatchDataInPlace() {
 
   const status = document.querySelector("[data-match-status]");
   if (status) {
-    status.textContent = state.matchError ? "Offline" : "Live";
+    status.textContent = state.matchError ? "Offline" : matchSnapshotTimeText();
   }
 
   const selected = selectedTerritory();
@@ -862,6 +867,11 @@ function updateMatchDataInPlace() {
   const territoryCount = document.querySelector("[data-territory-count]");
   if (territoryCount && state.matchSnapshot) {
     territoryCount.textContent = String(state.matchSnapshot.territories.length);
+  }
+
+  const matchGeneratedAt = document.querySelector("[data-match-generated-at]");
+  if (matchGeneratedAt) {
+    matchGeneratedAt.textContent = matchSnapshotTimeText();
   }
 }
 

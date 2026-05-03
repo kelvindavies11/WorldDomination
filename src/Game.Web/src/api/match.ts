@@ -50,6 +50,7 @@ export type LeaderboardRow = {
 export type MatchSnapshot = {
   gameId: string;
   mapArea: string;
+  snapshotGeneratedAtUtc: string;
   factions: MatchFaction[];
   territories: MatchTerritory[];
   armies: MatchArmy[];
