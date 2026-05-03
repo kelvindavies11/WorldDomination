@@ -25,6 +25,11 @@ public sealed class CardiffMatchService
 
     public MatchSnapshot CreateCardiffMatch()
     {
+        return CreateCardiffMatch("cardiff-match");
+    }
+
+    public MatchSnapshot CreateCardiffMatch(string gameId)
+    {
         var map = mapService.GetMap("cardiff");
         var factions = CreateFactions();
         var postcodeFeatures = postcodeTerritoryRepository.Load();
@@ -57,7 +62,7 @@ public sealed class CardiffMatchService
                 EliminationCount: 0)).ToArray());
 
         return new MatchSnapshot(
-            GameId: "cardiff-match",
+            GameId: gameId,
             MapArea: map.Name,
             SnapshotGeneratedAtUtc: DateTimeOffset.UtcNow,
             Map: map,
@@ -125,27 +130,85 @@ public sealed class CardiffMatchService
 
     private static IReadOnlyList<MatchRouteDto> CreateRoutes(IReadOnlyList<MatchTerritoryDto> territories)
     {
-        return Enumerable.Range(0, territories.Count - 1)
-            .Select(index =>
+        var routes = new Dictionary<string, MatchRouteDto>(StringComparer.Ordinal);
+        for (var index = 0; index < territories.Count; index++)
+        {
+            foreach (var destinationIndex in NearestTerritoryIndexes(territories, index, count: 3))
             {
-                var transport = index % 10 == 0
+                var source = territories[index];
+                var destination = territories[destinationIndex];
+                var key = RouteKey(source.Id, destination.Id);
+                if (routes.ContainsKey(key))
+                {
+                    continue;
+                }
+
+                var distanceSeconds = Math.Max(45, (int)Math.Round(CentroidDistance(source, destination) * 120_000));
+                var transport = (index + destinationIndex) % 10 == 0
                     ? RouteTransport.Rail
                     : RouteTransport.Road;
                 var result = MovementCalculator.Calculate(new MovementRoute(
-                    BaseDistanceSeconds: 90 + index % 20,
+                    BaseDistanceSeconds: distanceSeconds,
                     Transport: transport,
-                    Terrain: index % 8 == 0 ? RouteTerrain.Hills : RouteTerrain.Basic,
-                    Barrier: index % 15 == 0 ? RouteBarrier.BridgeOrTunnel : RouteBarrier.None));
+                    Terrain: (index + destinationIndex) % 8 == 0 ? RouteTerrain.Hills : RouteTerrain.Basic,
+                    Barrier: (index + destinationIndex) % 15 == 0 ? RouteBarrier.BridgeOrTunnel : RouteBarrier.None));
 
-                return new MatchRouteDto(
-                    SourceTerritoryId: territories[index].Id,
-                    DestinationTerritoryId: territories[index + 1].Id,
+                routes[key] = new MatchRouteDto(
+                    SourceTerritoryId: source.Id,
+                    DestinationTerritoryId: destination.Id,
                     Transport: transport,
                     EtaSeconds: result.EtaSeconds,
                     IsAllowed: result.IsAllowed);
-            })
-            .ToList();
+            }
+        }
+
+        return routes.Values.ToList();
     }
+
+    private static IEnumerable<int> NearestTerritoryIndexes(
+        IReadOnlyList<MatchTerritoryDto> territories,
+        int sourceIndex,
+        int count) =>
+        territories
+            .Select((territory, index) => new
+            {
+                Index = index,
+                Distance = index == sourceIndex
+                    ? double.MaxValue
+                    : CentroidDistance(territories[sourceIndex], territory)
+            })
+            .OrderBy(item => item.Distance)
+            .ThenBy(item => item.Index)
+            .Take(count)
+            .Select(item => item.Index);
+
+    private static double CentroidDistance(MatchTerritoryDto source, MatchTerritoryDto destination)
+    {
+        var sourceCenter = Centroid(source);
+        var destinationCenter = Centroid(destination);
+        var longitudeDelta = sourceCenter.Longitude - destinationCenter.Longitude;
+        var latitudeDelta = sourceCenter.Latitude - destinationCenter.Latitude;
+        return Math.Sqrt(longitudeDelta * longitudeDelta + latitudeDelta * latitudeDelta);
+    }
+
+    private static MapCoordinateDto Centroid(MatchTerritoryDto territory)
+    {
+        var coordinates = territory.BoundaryCoordinates;
+        var count = coordinates.Count;
+        if (count > 1 && coordinates[0] == coordinates[^1])
+        {
+            count--;
+        }
+
+        return new MapCoordinateDto(
+            Longitude: coordinates.Take(count).Average(coordinate => coordinate.Longitude),
+            Latitude: coordinates.Take(count).Average(coordinate => coordinate.Latitude));
+    }
+
+    private static string RouteKey(string sourceId, string destinationId) =>
+        string.Compare(sourceId, destinationId, StringComparison.Ordinal) <= 0
+            ? $"{sourceId}|{destinationId}"
+            : $"{destinationId}|{sourceId}";
 
     private static string NormalizePostcode(string postcode) =>
         postcode

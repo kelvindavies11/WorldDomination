@@ -28,7 +28,7 @@ public sealed class MapControlCalculatorTests
             {
                 Assert.Equal(1, first.Rank);
                 Assert.Equal("Player 1", first.FactionName);
-                Assert.Equal(60, first.MapControlPercentage);
+                Assert.Equal(60.0, first.MapControlPercentage);
                 Assert.False(first.IsEliminated);
                 Assert.Equal(1, first.EliminationCount);
             },
@@ -36,7 +36,7 @@ public sealed class MapControlCalculatorTests
             {
                 Assert.Equal(2, second.Rank);
                 Assert.Equal("NPC 1", second.FactionName);
-                Assert.Equal(25, second.MapControlPercentage);
+                Assert.Equal(25.0, second.MapControlPercentage);
                 Assert.False(second.IsEliminated);
             },
             third =>

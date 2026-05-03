@@ -14,7 +14,7 @@ public sealed record LeaderboardRow(
     int Rank,
     string FactionId,
     string FactionName,
-    int MapControlPercentage,
+    double MapControlPercentage,
     int EliminationCount,
     bool IsEliminated);
 
@@ -35,7 +35,7 @@ public static class MapControlCalculator
 
                 var percentage = totalArea <= 0
                     ? 0
-                    : (int)Math.Round(controlledArea / totalArea * 100, MidpointRounding.AwayFromZero);
+                    : Math.Round(controlledArea / totalArea * 100, 1, MidpointRounding.AwayFromZero);
 
                 return new LeaderboardRow(
                     Rank: 0,

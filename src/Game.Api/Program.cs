@@ -7,6 +7,8 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 builder.Services.AddSingleton<CardiffMatchService>();
+builder.Services.AddSingleton<CardiffMatchStateService>();
+builder.Services.AddSingleton<PlayerTerritoryCommandService>();
 builder.Services.AddSingleton<GameLobbyService>();
 builder.Services.AddSingleton<GameMapService>();
 
@@ -15,8 +17,16 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.MapGet("/api/matches/cardiff", (CardiffMatchService service) =>
-    Results.Ok(service.CreateCardiffMatch()));
+app.MapGet("/api/matches/{gameId}", (string gameId, CardiffMatchStateService service) =>
+    Results.Ok(service.GetSnapshot(gameId)));
+
+app.MapPost("/api/matches/{gameId}/movements", (string gameId, SendArmyCommand request, PlayerTerritoryCommandService service) =>
+{
+    var result = service.SendArmyToNeutralTerritory(request with { GameId = gameId });
+    return result.Accepted
+        ? Results.Ok(result)
+        : Results.BadRequest(new { error = result.Error });
+});
 
 app.MapGet("/api/games", (GameLobbyService service) =>
     Results.Ok(service.ListAvailableGames()));

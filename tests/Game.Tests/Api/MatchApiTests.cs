@@ -75,6 +75,98 @@ public sealed class MatchApiTests
     }
 
     [Fact]
+    public async Task CardiffMovementEndpointCapturesConnectedNeutralTerritory()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient();
+        var before = await client.GetFromJsonAsync<MatchSnapshot>("/api/matches/cardiff", ApiJsonOptions);
+        Assert.NotNull(before);
+        var controlBefore = before.Leaderboard.Single(row => row.FactionId == "human-1").MapControlPercentage;
+        var source = before.Territories.Single(territory => territory.OwnerFactionId == "human-1");
+        var route = before.Routes.First(route =>
+            route.SourceTerritoryId == source.Id &&
+            before.Territories.Single(territory => territory.Id == route.DestinationTerritoryId).OwnerFactionId is null);
+
+        var response = await client.PostAsJsonAsync("/api/matches/cardiff/movements", new
+        {
+            playerFactionId = "human-1",
+            sourceTerritoryId = source.Id,
+            targetTerritoryId = route.DestinationTerritoryId,
+            strength = 40
+        }, ApiJsonOptions);
+        var result = await response.Content.ReadFromJsonAsync<SendArmyResult>(ApiJsonOptions);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(result);
+        Assert.True(result.Accepted);
+        Assert.NotNull(result.Snapshot);
+        Assert.Contains(result.Snapshot.Leaderboard, row => row.FactionId == "human-1" && row.FactionName == "Player 1");
+        Assert.True(result.Snapshot.Leaderboard.Single(row => row.FactionId == "human-1").MapControlPercentage > controlBefore);
+        Assert.Equal("human-1", result.Snapshot.Territories.Single(territory => territory.Id == route.DestinationTerritoryId).OwnerFactionId);
+        Assert.Equal(60, result.Snapshot.Armies.Single(army => army.TerritoryId == source.Id && army.FactionId == "human-1").Strength);
+        Assert.Equal(40, result.Snapshot.Armies.Single(army => army.TerritoryId == route.DestinationTerritoryId && army.FactionId == "human-1").Strength);
+    }
+
+    [Fact]
+    public async Task CreatedGameSnapshotDoesNotInheritCapturedTerritoriesFromOtherGames()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient();
+        var cardiffBefore = await client.GetFromJsonAsync<MatchSnapshot>("/api/matches/cardiff", ApiJsonOptions);
+        Assert.NotNull(cardiffBefore);
+        var source = cardiffBefore.Territories.Single(territory => territory.OwnerFactionId == "human-1");
+        var route = cardiffBefore.Routes.First(route =>
+            route.SourceTerritoryId == source.Id &&
+            cardiffBefore.Territories.Single(territory => territory.Id == route.DestinationTerritoryId).OwnerFactionId is null);
+
+        var captureResponse = await client.PostAsJsonAsync("/api/matches/cardiff/movements", new
+        {
+            playerFactionId = "human-1",
+            sourceTerritoryId = source.Id,
+            targetTerritoryId = route.DestinationTerritoryId,
+            strength = 40
+        }, ApiJsonOptions);
+        var createResponse = await client.PostAsJsonAsync("/api/games", new CreateGameRequest(
+            Name: "Fresh Cardiff",
+            MapArea: "Cardiff",
+            MaxHumanPlayers: 2,
+            NpcFactions: 6,
+            TerritoryCount: 100), ApiJsonOptions);
+        var created = await createResponse.Content.ReadFromJsonAsync<AvailableGameDto>(ApiJsonOptions);
+        Assert.NotNull(created);
+        var createdSnapshot = await client.GetFromJsonAsync<MatchSnapshot>($"/api/matches/{created.Id}", ApiJsonOptions);
+
+        Assert.Equal(HttpStatusCode.OK, captureResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        Assert.NotNull(createdSnapshot);
+        Assert.Equal(created.Id, createdSnapshot.GameId);
+        Assert.Null(createdSnapshot.Territories.Single(territory => territory.Id == route.DestinationTerritoryId).OwnerFactionId);
+    }
+
+    [Fact]
+    public async Task CardiffMovementEndpointReturnsBadRequestForInvalidCommand()
+    {
+        await using var factory = new WebApplicationFactory<Program>();
+        using var client = factory.CreateClient();
+        var before = await client.GetFromJsonAsync<MatchSnapshot>("/api/matches/cardiff", ApiJsonOptions);
+        Assert.NotNull(before);
+        var source = before.Territories.Single(territory => territory.OwnerFactionId == "human-1");
+        var route = before.Routes.First(route => route.SourceTerritoryId == source.Id);
+
+        var response = await client.PostAsJsonAsync("/api/matches/cardiff/movements", new
+        {
+            playerFactionId = "human-1",
+            sourceTerritoryId = source.Id,
+            targetTerritoryId = route.DestinationTerritoryId,
+            strength = 140
+        }, ApiJsonOptions);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("Strength cannot exceed the available source army strength.", document.RootElement.GetProperty("error").GetString());
+    }
+
+    [Fact]
     public async Task RootReturnsFrontendShellWhenStaticIndexExists()
     {
         using var staticSite = StaticSiteFixture.Create();
@@ -164,6 +256,82 @@ public sealed class MatchApiTests
         Assert.Contains("play-area-outline", appScript);
         Assert.DoesNotContain("const MAP_DETAILS", appScript);
         Assert.DoesNotContain("function playAreaBoundaryFeature(bounds)", appScript);
+    }
+
+    [Fact]
+    public void CardiffMatchFrontendAssetDeclaresTerritoryControlHooks()
+    {
+        var appScript = File.ReadAllText(Path.Combine(
+            Directory.GetCurrentDirectory(),
+            "..",
+            "..",
+            "..",
+            "..",
+            "..",
+            "src",
+            "Game.Api",
+            "wwwroot",
+            "app.js"));
+
+        Assert.Contains("selectedSourceTerritoryId", appScript);
+        Assert.Contains("selectedTargetTerritoryId", appScript);
+        Assert.Contains("data-action=\"send-movement\"", appScript);
+        Assert.Contains("armyStrengthSlider", appScript);
+        Assert.Contains("matchApiPath", appScript);
+        Assert.Contains("currentGameId", appScript);
+        Assert.Contains("`/api/matches/${encodeURIComponent(currentGameId())}`", appScript);
+        Assert.Contains("`${matchApiPath()}/movements`", appScript);
+        Assert.DoesNotContain("/api/matches/cardiff/movements", appScript);
+        Assert.Contains("territory-valid-target-outline", appScript);
+        Assert.Contains("validTargetTerritoryIds", appScript);
+        Assert.Contains("validTargetFilter", appScript);
+        Assert.Contains("isValidExpansionTarget", appScript);
+        Assert.Contains("[\"==\", [\"get\", \"isValidExpansionTarget\"], true]", appScript);
+        Assert.Contains("data-valid-targets", appScript);
+        Assert.Contains("selectedTerritoryOutlineColorPaint", appScript);
+        Assert.Contains("territorySelectionColor", appScript);
+        Assert.Contains("selectedExpansionTargetColor", appScript);
+        Assert.Contains("[\"coalesce\", [\"get\", \"ownerColor\"], \"#ffffff\"]", appScript);
+        Assert.Contains("isSelectedExpansionTarget", appScript);
+        Assert.Contains("territory-valid-target-shadow", appScript);
+        Assert.Contains("territory-target-selection-outline", appScript);
+        Assert.Contains("territory-capture-expansion", appScript);
+        Assert.Contains("captureExpansionFillPaint", appScript);
+        Assert.Contains("animateTerritoryCaptureExpansion", appScript);
+        Assert.Contains("captureExpansionFeature", appScript);
+        Assert.Contains("requestAnimationFrame", appScript);
+        Assert.Contains("type: \"Polygon\"", appScript);
+        Assert.DoesNotContain("type: \"circle\"", appScript);
+        Assert.Contains("preserveExpansionSelection", appScript);
+        Assert.Contains("\"line-color\": \"#07130f\"", appScript);
+        Assert.Contains("\"line-color\": \"#7cffd4\"", appScript);
+        Assert.Contains("\"line-dasharray\": [1.2, 0.8]", appScript);
+        Assert.DoesNotContain("territory-valid-target-fill", appScript);
+        Assert.DoesNotContain("fill-pattern", appScript);
+    }
+
+    [Fact]
+    public void CardiffMatchFrontendAssetShowsEveryLeaderboardRowAndLabelsCurrentPlayer()
+    {
+        var appScript = File.ReadAllText(Path.Combine(
+            Directory.GetCurrentDirectory(),
+            "..",
+            "..",
+            "..",
+            "..",
+            "..",
+            "src",
+            "Game.Api",
+            "wwwroot",
+            "app.js"));
+
+        Assert.Contains("leaderboardDisplayName", appScript);
+        Assert.Contains("leaderboardControlText", appScript);
+        Assert.Contains("Player 1 (You)", appScript);
+        Assert.Contains("rows?.length ? rows : fallbackRows).map", appScript);
+        Assert.Contains("toFixed(1)", appScript);
+        Assert.DoesNotContain("Math.round(row.mapControlPercentage)", appScript);
+        Assert.DoesNotContain("slice(0, 6).map", appScript);
     }
 
     [Fact]

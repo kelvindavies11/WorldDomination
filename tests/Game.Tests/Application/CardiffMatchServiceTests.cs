@@ -45,6 +45,12 @@ public sealed class CardiffMatchServiceTests
             Assert.InRange(territory.Stats.StrategicValue, 0, 100);
         });
         Assert.NotEmpty(match.Routes);
+        var humanOneStart = match.Territories.Single(territory => territory.OwnerFactionId == "human-1");
+        var humanOneNeutralRoutes = match.Routes
+            .Where(route => route.SourceTerritoryId == humanOneStart.Id || route.DestinationTerritoryId == humanOneStart.Id)
+            .Select(route => route.SourceTerritoryId == humanOneStart.Id ? route.DestinationTerritoryId : route.SourceTerritoryId)
+            .Count(targetId => match.Territories.Single(territory => territory.Id == targetId).OwnerFactionId is null);
+        Assert.True(humanOneNeutralRoutes >= 2);
         Assert.Equal(8, match.Leaderboard.Count);
     }
 

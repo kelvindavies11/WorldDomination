@@ -455,6 +455,55 @@ h3 {
   gap: 2px;
 }
 
+.move-summary {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.055);
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.move-summary span,
+.move-summary small,
+.range-field span,
+.form-error {
+  color: var(--muted);
+}
+
+.range-field {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+input[type="range"] {
+  accent-color: #2dd4a3;
+  width: 100%;
+}
+
+.actions.compact {
+  display: flex;
+  gap: 8px;
+}
+
+.form-error {
+  color: #ffb4a8;
+  font-size: 13px;
+}
+
+.target-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.target-pill {
+  border-color: rgba(45, 212, 163, 0.58);
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
 .army-strength {
   font-size: 28px;
   font-weight: 800;

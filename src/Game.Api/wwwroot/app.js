@@ -1,4 +1,4 @@
-import { ownerColorForTerritory, territoryFillPaint } from "./mapOwnershipStyles.mjs";
+import { captureExpansionFillPaint, ownerColorForTerritory, territoryFillPaint } from "./mapOwnershipStyles.mjs";
 
 const app = document.querySelector("#app");
 
@@ -9,15 +9,22 @@ const state = {
   creating: false,
   createError: null,
   matchSnapshot: null,
+  matchSnapshotGameId: null,
   matchLoading: false,
   matchError: null,
   selectedTerritoryId: null,
+  selectedSourceTerritoryId: null,
+  selectedTargetTerritoryId: null,
+  selectedMovementStrength: 1,
+  movementSubmitting: false,
+  movementError: null,
   collapsedWidgets: new Set()
 };
 
 let activeMap = null;
 let mapInitializedForPath = null;
 let hoveredTerritoryId = null;
+let captureExpansionAnimationFrame = null;
 
 const FALLBACK_MAP_VIEW = {
   name: "Cardiff",
@@ -187,10 +194,13 @@ function renderMatchPage() {
 
             <div class="panel-section">
               <h3>Army</h3>
-              <div class="army-card">
-                <span class="army-strength">100</span>
-                <span class="muted">starting strength</span>
+              <div class="army-card" data-selected-army>
+                ${selectedArmyMarkup(selectedTerritory())}
               </div>
+            </div>
+
+            <div class="panel-section" data-movement-panel>
+              ${movementPanelMarkup()}
             </div>
           </div>
         </aside>
@@ -310,6 +320,159 @@ function selectedTerritoryOwnerText() {
     : "Neutral territory";
 }
 
+function selectedArmyMarkup(territory) {
+  const strength = armyStrengthForTerritory(territory?.id, territory?.ownerFactionId);
+  return `
+    <span class="army-strength">${strength}</span>
+    <span class="muted">${strength > 0 ? "available strength" : "no army stationed"}</span>
+  `;
+}
+
+function armyStrengthForTerritory(territoryId, factionId) {
+  if (!territoryId || !factionId || !state.matchSnapshot?.armies) {
+    return 0;
+  }
+
+  return state.matchSnapshot.armies
+    .filter(army => army.territoryId === territoryId && army.factionId === factionId)
+    .reduce((total, army) => total + army.strength, 0);
+}
+
+function validTargetTerritoryIds(sourceId = state.selectedSourceTerritoryId) {
+  if (!sourceId || !state.matchSnapshot) {
+    return [];
+  }
+
+  const territoriesById = new Map(state.matchSnapshot.territories.map(territory => [territory.id, territory]));
+  return state.matchSnapshot.routes
+    .filter(route => route.isAllowed && (route.sourceTerritoryId === sourceId || route.destinationTerritoryId === sourceId))
+    .map(route => route.sourceTerritoryId === sourceId ? route.destinationTerritoryId : route.sourceTerritoryId)
+    .filter(id => territoriesById.get(id)?.ownerFactionId == null);
+}
+
+function movementPanelMarkup() {
+  const source = state.matchSnapshot?.territories?.find(territory => territory.id === state.selectedSourceTerritoryId) ?? null;
+  const target = state.matchSnapshot?.territories?.find(territory => territory.id === state.selectedTargetTerritoryId) ?? null;
+  if (!source) {
+    return `<p class="muted">Select one of your territories to plan an expansion.</p>`;
+  }
+
+  const available = armyStrengthForTerritory(source.id, source.ownerFactionId);
+  const targets = validTargetTerritoryIds(source.id);
+  if (available <= 0) {
+    return `<p class="muted">This territory has no army available to move.</p>`;
+  }
+
+  if (!target) {
+    return `
+      <h3>Expand</h3>
+      <p class="muted">${targets.length} neutral target${targets.length === 1 ? "" : "s"} connected. Select one on the map.</p>
+      <div class="target-list" data-valid-targets>${validTargetsMarkup(targets)}</div>
+      ${state.movementError ? `<p class="form-error">${escapeHtml(state.movementError)}</p>` : ""}
+    `;
+  }
+
+  const route = routeBetween(source.id, target.id);
+  const sliderValue = Math.min(Math.max(state.selectedMovementStrength, 1), available);
+  return `
+    <h3>Move order</h3>
+    <div class="move-summary">
+      <span>${escapeHtml(source.name)}</span>
+      <strong>${escapeHtml(target.name)}</strong>
+      <small>${route?.transport ?? "Road"} route - ETA ${route?.etaSeconds ?? "-"}s</small>
+    </div>
+    <label class="range-field" for="armyStrengthSlider">
+      <span>Troops</span>
+      <strong data-movement-strength>${sliderValue}</strong>
+    </label>
+    <input id="armyStrengthSlider" type="range" min="1" max="${available}" value="${sliderValue}" data-action="movement-strength">
+    ${state.movementError ? `<p class="form-error">${escapeHtml(state.movementError)}</p>` : ""}
+    <div class="actions compact">
+      <button type="button" data-action="send-movement">${state.movementSubmitting ? "Sending..." : "Send"}</button>
+      <button type="button" class="secondary" data-action="cancel-movement">Cancel</button>
+    </div>
+  `;
+}
+
+function routeBetween(sourceId, targetId) {
+  return state.matchSnapshot?.routes?.find(route =>
+    route.sourceTerritoryId === sourceId && route.destinationTerritoryId === targetId ||
+    route.sourceTerritoryId === targetId && route.destinationTerritoryId === sourceId) ?? null;
+}
+
+function validTargetsMarkup(targetIds) {
+  if (targetIds.length === 0) {
+    return `<span class="muted">No connected neutral territories available.</span>`;
+  }
+
+  return targetIds.map(id => {
+    const territory = state.matchSnapshot?.territories?.find(item => item.id === id);
+    return `<button type="button" class="target-pill" data-action="select-target" data-territory-id="${escapeHtml(id)}">${escapeHtml(territory?.name ?? id)}</button>`;
+  }).join("");
+}
+
+function selectTerritoryForMovement(id) {
+  const territory = state.matchSnapshot?.territories?.find(item => item.id === id);
+  if (!territory) {
+    return;
+  }
+
+  state.selectedTerritoryId = id;
+  state.movementError = null;
+
+  if (state.selectedSourceTerritoryId && validTargetTerritoryIds().includes(id)) {
+    state.selectedTargetTerritoryId = id;
+    state.selectedMovementStrength = Math.min(
+      Math.max(state.selectedMovementStrength, 1),
+      armyStrengthForTerritory(state.selectedSourceTerritoryId, "human-1"));
+    return;
+  }
+
+  if (territory.ownerFactionId === "human-1") {
+    state.selectedSourceTerritoryId = id;
+    state.selectedTargetTerritoryId = null;
+    state.selectedMovementStrength = Math.max(1, Math.floor(armyStrengthForTerritory(id, "human-1") / 2));
+    return;
+  }
+
+  preserveExpansionSelection();
+}
+
+function preserveExpansionSelection() {
+  state.selectedTerritoryId = state.selectedTargetTerritoryId ?? state.selectedSourceTerritoryId ?? state.selectedTerritoryId;
+}
+
+function refreshValidTargetLayer() {
+  if (!activeMap?.getLayer("territory-valid-target-outline")) {
+    return;
+  }
+
+  if (activeMap.getSource("territories")) {
+    activeMap.getSource("territories").setData(territoryFeatureCollection());
+  }
+  if (activeMap.getLayer("territory-valid-target-shadow")) {
+    activeMap.setFilter("territory-valid-target-shadow", validTargetFilter());
+  }
+  activeMap.setFilter("territory-valid-target-outline", validTargetFilter());
+}
+
+function validTargetFilter() {
+  return ["==", ["get", "isValidExpansionTarget"], true];
+}
+
+function selectedTerritoryOutlineColorPaint() {
+  return ["coalesce", ["get", "ownerColor"], "#ffffff"];
+}
+
+function territorySelectionColor() {
+  return ["coalesce", ["get", "selectionColor"], ["get", "ownerColor"], "#ffffff"];
+}
+
+function selectedExpansionTargetColor() {
+  const source = state.matchSnapshot?.territories?.find(territory => territory.id === state.selectedSourceTerritoryId);
+  return ownerColorForTerritory({ ownerFactionId: source?.ownerFactionId ?? null }, state.matchSnapshot?.factions ?? []);
+}
+
 function territoryStatsMarkup(territory) {
   const stats = territory?.stats ?? {
     economy: 74,
@@ -343,19 +506,27 @@ function leaderboardMarkup() {
     { factionName: "NPC-1", mapControlPercentage: 9, eliminationCount: 0, color: "#c58a1a" }
   ];
 
-  return (rows?.length ? rows : fallbackRows).slice(0, 6).map(row => {
-    const control = Math.round(row.mapControlPercentage);
+  return (rows?.length ? rows : fallbackRows).map(row => {
+    const control = Number(row.mapControlPercentage) || 0;
     const color = row.color ?? factionById(row.factionId)?.color ?? "#1f8a70";
     return `
       <div class="leader-entry">
         <span class="leader-swatch" style="--swatch:${escapeHtml(color)}"></span>
-        <strong>${escapeHtml(row.factionName)}</strong>
-        <span>${control}%</span>
+        <strong>${escapeHtml(leaderboardDisplayName(row))}</strong>
+        <span>${leaderboardControlText(control)}</span>
         <small>${row.eliminationCount} elim</small>
         <div class="bar"><div class="fill" style="--w:${control}%; --fill:${escapeHtml(color)}"></div></div>
       </div>
     `;
   }).join("");
+}
+
+function leaderboardDisplayName(row) {
+  return row.factionId === "human-1" ? "Player 1 (You)" : row.factionName;
+}
+
+function leaderboardControlText(control) {
+  return `${control.toFixed(1)}%`;
 }
 
 function factionById(factionId) {
@@ -387,6 +558,17 @@ async function loadGames() {
 }
 
 async function loadMatchSnapshot() {
+  const gameId = currentGameId();
+  if (state.matchSnapshotGameId !== gameId) {
+    state.matchSnapshot = null;
+    state.matchError = null;
+    state.matchSnapshotGameId = gameId;
+    state.selectedTerritoryId = null;
+    state.selectedSourceTerritoryId = null;
+    state.selectedTargetTerritoryId = null;
+    state.selectedMovementStrength = 1;
+  }
+
   if (state.matchLoading || state.matchSnapshot || state.matchError) {
     return;
   }
@@ -395,7 +577,7 @@ async function loadMatchSnapshot() {
   updateMatchSummary();
 
   try {
-    const response = await fetch("/api/matches/cardiff");
+    const response = await fetch(matchApiPath());
     if (!response.ok) {
       throw new Error(`The match API returned HTTP ${response.status}.`);
     }
@@ -447,6 +629,53 @@ async function createGame(form) {
     render();
   } finally {
     state.creating = false;
+  }
+}
+
+async function sendMovement() {
+  if (!state.selectedSourceTerritoryId || !state.selectedTargetTerritoryId || state.movementSubmitting) {
+    return;
+  }
+
+  const captureAnimation = captureExpansionRequest(
+    state.selectedSourceTerritoryId,
+    state.selectedTargetTerritoryId);
+  state.movementSubmitting = true;
+  state.movementError = null;
+  updateMatchDataInPlace();
+
+  try {
+    const response = await fetch(`${matchApiPath()}/movements`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        playerFactionId: "human-1",
+        sourceTerritoryId: state.selectedSourceTerritoryId,
+        targetTerritoryId: state.selectedTargetTerritoryId,
+        strength: state.selectedMovementStrength
+      })
+    });
+
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.accepted) {
+      throw new Error(result?.error ?? "Movement command was rejected.");
+    }
+
+    state.matchSnapshot = result.snapshot;
+    state.selectedTerritoryId = state.selectedTargetTerritoryId;
+    state.selectedSourceTerritoryId = null;
+    state.selectedTargetTerritoryId = null;
+    state.selectedMovementStrength = 1;
+    if (activeMap?.getSource("territories")) {
+      activeMap.getSource("territories").setData(territoryFeatureCollection());
+      activeMap.setFilter("territory-selected-outline", ["==", ["get", "id"], state.selectedTerritoryId ?? ""]);
+    }
+    animateTerritoryCaptureExpansion(captureAnimation);
+  } catch (error) {
+    state.movementError = error instanceof Error ? error.message : "Movement command was rejected.";
+  } finally {
+    state.movementSubmitting = false;
+    updateMatchDataInPlace();
   }
 }
 
@@ -563,6 +792,22 @@ function addTerritoryLayers(map) {
     });
   }
 
+  if (!map.getSource("territory-capture-expansion")) {
+    map.addSource("territory-capture-expansion", {
+      type: "geojson",
+      data: emptyFeatureCollection()
+    });
+  }
+
+  if (!map.getLayer("territory-capture-expansion")) {
+    map.addLayer({
+      id: "territory-capture-expansion",
+      type: "fill",
+      source: "territory-capture-expansion",
+      paint: captureExpansionFillPaint()
+    });
+  }
+
   if (!map.getLayer("territory-hover-fill")) {
     map.addLayer({
       id: "territory-hover-fill",
@@ -603,6 +848,35 @@ function addTerritoryLayers(map) {
     });
   }
 
+  if (!map.getLayer("territory-valid-target-shadow")) {
+    map.addLayer({
+      id: "territory-valid-target-shadow",
+      type: "line",
+      source: "territories",
+      filter: validTargetFilter(),
+      paint: {
+        "line-color": "#07130f",
+        "line-width": 7,
+        "line-opacity": 0.9
+      }
+    });
+  }
+
+  if (!map.getLayer("territory-valid-target-outline")) {
+    map.addLayer({
+      id: "territory-valid-target-outline",
+      type: "line",
+      source: "territories",
+      filter: validTargetFilter(),
+      paint: {
+        "line-color": "#7cffd4",
+        "line-width": 4,
+        "line-opacity": 1,
+        "line-dasharray": [1.2, 0.8]
+      }
+    });
+  }
+
   if (!map.getLayer("territory-selected-outline")) {
     map.addLayer({
       id: "territory-selected-outline",
@@ -610,9 +884,23 @@ function addTerritoryLayers(map) {
       source: "territories",
       filter: ["==", ["get", "id"], state.selectedTerritoryId ?? ""],
       paint: {
-        "line-color": "#ffffff",
-        "line-width": 2.4,
-        "line-opacity": 0.82
+        "line-color": territorySelectionColor(),
+        "line-width": 4,
+        "line-opacity": 0.95
+      }
+    });
+  }
+
+  if (!map.getLayer("territory-target-selection-outline")) {
+    map.addLayer({
+      id: "territory-target-selection-outline",
+      type: "line",
+      source: "territories",
+      filter: ["==", ["get", "isSelectedExpansionTarget"], true],
+      paint: {
+        "line-color": territorySelectionColor(),
+        "line-width": 5,
+        "line-opacity": 0.98
       }
     });
   }
@@ -624,8 +912,9 @@ function addTerritoryLayers(map) {
       return;
     }
 
-    state.selectedTerritoryId = id;
-    map.setFilter("territory-selected-outline", ["==", ["get", "id"], id]);
+    selectTerritoryForMovement(id);
+    map.setFilter("territory-selected-outline", ["==", ["get", "id"], state.selectedTerritoryId ?? ""]);
+    refreshValidTargetLayer();
     updateMatchDataInPlace();
   });
 
@@ -651,6 +940,8 @@ function addTerritoryLayers(map) {
 
 function territoryFeatureCollection() {
   const territories = state.matchSnapshot?.territories ?? [];
+  const validTargets = new Set(validTargetTerritoryIds());
+  const expansionTargetColor = selectedExpansionTargetColor();
   return {
     type: "FeatureCollection",
     features: territories
@@ -664,6 +955,9 @@ function territoryFeatureCollection() {
             name: territory.name,
             postcode: territory.postcode,
             ownerFactionId: territory.ownerFactionId ?? null,
+            isValidExpansionTarget: validTargets.has(territory.id),
+            isSelectedExpansionTarget: territory.id === state.selectedTargetTerritoryId,
+            selectionColor: territory.id === state.selectedTargetTerritoryId ? expansionTargetColor : ownerColor,
             ownerColor
           },
           geometry: {
@@ -673,6 +967,104 @@ function territoryFeatureCollection() {
         };
       })
   };
+}
+
+function emptyFeatureCollection() {
+  return {
+    type: "FeatureCollection",
+    features: []
+  };
+}
+
+function captureExpansionRequest(sourceTerritoryId, targetTerritoryId) {
+  const territories = state.matchSnapshot?.territories ?? [];
+  const source = territories.find(territory => territory.id === sourceTerritoryId);
+  const target = territories.find(territory => territory.id === targetTerritoryId);
+  if (!source || !target) {
+    return null;
+  }
+
+  return {
+    sourceCenter: territoryCenter(source),
+    targetCenter: territoryCenter(target),
+    targetCoordinates: target.boundaryCoordinates.map(coordinatePair),
+    ownerColor: selectedExpansionTargetColor()
+  };
+}
+
+function animateTerritoryCaptureExpansion(animation) {
+  if (!activeMap || !animation?.sourceCenter || !animation?.targetCenter || !animation?.targetCoordinates?.length) {
+    return;
+  }
+
+  const source = activeMap.getSource("territory-capture-expansion");
+  if (!source) {
+    return;
+  }
+
+  if (captureExpansionAnimationFrame !== null) {
+    cancelAnimationFrame(captureExpansionAnimationFrame);
+  }
+
+  const startedAt = performance.now();
+  const durationMs = 820;
+
+  const step = now => {
+    const progress = Math.min((now - startedAt) / durationMs, 1);
+    source.setData(captureExpansionFeature(animation.targetCoordinates, animation.ownerColor, easeOutCubic(progress)));
+
+    if (progress < 1) {
+      captureExpansionAnimationFrame = requestAnimationFrame(step);
+      return;
+    }
+
+    source.setData(emptyFeatureCollection());
+    captureExpansionAnimationFrame = null;
+  };
+
+  captureExpansionAnimationFrame = requestAnimationFrame(step);
+}
+
+function captureExpansionFeature(targetCoordinates, ownerColor, progress) {
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {
+          ownerColor,
+          progress
+        },
+        geometry: {
+          type: "Polygon",
+          coordinates: [targetCoordinates]
+        }
+      }
+    ]
+  };
+}
+
+function territoryCenter(territory) {
+  const coordinates = territory.boundaryCoordinates ?? [];
+  const usableCoordinates = coordinates.length > 1 &&
+    coordinates[0].longitude === coordinates.at(-1).longitude &&
+    coordinates[0].latitude === coordinates.at(-1).latitude
+    ? coordinates.slice(0, -1)
+    : coordinates;
+
+  const total = usableCoordinates.reduce((sum, coordinate) => ({
+    longitude: sum.longitude + coordinate.longitude,
+    latitude: sum.latitude + coordinate.latitude
+  }), { longitude: 0, latitude: 0 });
+
+  return [
+    total.longitude / usableCoordinates.length,
+    total.latitude / usableCoordinates.length
+  ];
+}
+
+function easeOutCubic(progress) {
+  return 1 - Math.pow(1 - progress, 3);
 }
 
 function addPlayAreaBoundary(map) {
@@ -816,6 +1208,19 @@ function isMatchRoute() {
   return path.startsWith("/games/") && path !== "/games/create" && path !== "/games/cardiff/lobby";
 }
 
+function currentGameId() {
+  const path = window.location.pathname;
+  if (path === routes.match) {
+    return "cardiff";
+  }
+
+  return decodeURIComponent(path.split("/").filter(Boolean).at(-1) ?? "cardiff");
+}
+
+function matchApiPath() {
+  return `/api/matches/${encodeURIComponent(currentGameId())}`;
+}
+
 function updateMatchSummary() {
   const summary = document.querySelector("[data-match-summary]");
   if (summary) {
@@ -851,6 +1256,18 @@ function updateMatchDataInPlace() {
   if (selectedStats) {
     selectedStats.innerHTML = territoryStatsMarkup(selected);
   }
+
+  const selectedArmy = document.querySelector("[data-selected-army]");
+  if (selectedArmy) {
+    selectedArmy.innerHTML = selectedArmyMarkup(selected);
+  }
+
+  const movementPanel = document.querySelector("[data-movement-panel]");
+  if (movementPanel) {
+    movementPanel.innerHTML = movementPanelMarkup();
+  }
+
+  refreshValidTargetLayer();
 
   const leaderboard = document.querySelector("[data-leaderboard]");
   if (leaderboard) {
@@ -916,6 +1333,43 @@ app.addEventListener("click", event => {
 
   if (target.dataset.action === "toggle-widget") {
     toggleWidget(target.dataset.widget);
+    return;
+  }
+
+  if (target.dataset.action === "send-movement") {
+    void sendMovement();
+    return;
+  }
+
+  if (target.dataset.action === "select-target") {
+    selectTerritoryForMovement(target.dataset.territoryId);
+    if (activeMap?.getLayer("territory-selected-outline")) {
+      activeMap.setFilter("territory-selected-outline", ["==", ["get", "id"], state.selectedTerritoryId ?? ""]);
+    }
+    refreshValidTargetLayer();
+    updateMatchDataInPlace();
+    return;
+  }
+
+  if (target.dataset.action === "cancel-movement") {
+    state.selectedSourceTerritoryId = null;
+    state.selectedTargetTerritoryId = null;
+    state.movementError = null;
+    refreshValidTargetLayer();
+    updateMatchDataInPlace();
+  }
+});
+
+app.addEventListener("input", event => {
+  const input = event.target.closest("[data-action='movement-strength']");
+  if (!input) {
+    return;
+  }
+
+  state.selectedMovementStrength = Number.parseInt(input.value, 10);
+  const label = document.querySelector("[data-movement-strength]");
+  if (label) {
+    label.textContent = String(state.selectedMovementStrength);
   }
 });
 

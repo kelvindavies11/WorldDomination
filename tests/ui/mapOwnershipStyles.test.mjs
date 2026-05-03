@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  captureExpansionFillPaint,
   ownerColorForTerritory,
   territoryFillPaint
 } from "../../src/Game.Api/wwwroot/mapOwnershipStyles.mjs";
@@ -26,5 +27,23 @@ test("territory fill paint styles owned polygons from feature color properties",
   assert.deepEqual(territoryFillPaint(), {
     "fill-color": ["coalesce", ["get", "ownerColor"], "#dceee8"],
     "fill-opacity": ["case", ["!=", ["get", "ownerFactionId"], null], 0.5, 0.22]
+  });
+});
+
+test("capture expansion fill paint stays clipped to the target polygon", () => {
+  assert.deepEqual(captureExpansionFillPaint(), {
+    "fill-color": ["get", "ownerColor"],
+    "fill-opacity": [
+      "interpolate",
+      ["linear"],
+      ["get", "progress"],
+      0,
+      0.12,
+      0.72,
+      0.48,
+      1,
+      0
+    ],
+    "fill-outline-color": ["get", "ownerColor"]
   });
 });

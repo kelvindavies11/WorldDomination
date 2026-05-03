@@ -59,3 +59,16 @@ public sealed record MatchRouteDto(
     RouteTransport Transport,
     int EtaSeconds,
     bool IsAllowed);
+
+public sealed record SendArmyCommand(
+    string PlayerFactionId,
+    string SourceTerritoryId,
+    string TargetTerritoryId,
+    int Strength,
+    string GameId = "cardiff-match");
+
+public sealed record SendArmyResult(
+    bool Accepted,
+    string? Error,
+    int? EtaSeconds,
+    MatchSnapshot? Snapshot);
