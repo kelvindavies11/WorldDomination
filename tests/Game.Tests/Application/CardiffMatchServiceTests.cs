@@ -6,7 +6,7 @@ namespace Game.Tests.Application;
 public sealed class CardiffMatchServiceTests
 {
     [Fact]
-    public void CreatesDeterministicCardiffMatchWithDocumentedDefaults()
+    public void CreatesCardiffMatchWithValidDefaults()
     {
         var service = new CardiffMatchService(new GameMapService());
 
@@ -55,19 +55,27 @@ public sealed class CardiffMatchServiceTests
     }
 
     [Fact]
-    public void SpreadsNpcStartsAcrossTheTerritoryList()
+    public void RandomizesStartingPositionsPerMatchCreation()
     {
-        var service = new CardiffMatchService(new GameMapService());
+        var seededRandom = new Random(1234);
+        var service = new CardiffMatchService(
+            new GameMapService(),
+            new CardiffPostcodeTerritoryRepository(),
+            new CardiffTerritoryFeatureRepository(),
+            seededRandom);
 
-        var match = service.CreateCardiffMatch();
-        var npcStartIndexes = match.Factions
-            .Where(faction => faction.Kind == FactionKind.Npc)
-            .Select(faction => match.Territories.Single(territory => territory.OwnerFactionId == faction.Id).Index)
-            .Order()
+        var firstMatch = service.CreateCardiffMatch("game-a");
+        var secondMatch = service.CreateCardiffMatch("game-b");
+
+        var firstStarts = firstMatch.Factions
+            .Select(faction => firstMatch.Territories.Single(territory => territory.OwnerFactionId == faction.Id).Index)
+            .ToArray();
+        var secondStarts = secondMatch.Factions
+            .Select(faction => secondMatch.Territories.Single(territory => territory.OwnerFactionId == faction.Id).Index)
             .ToArray();
 
-        Assert.Equal(6, npcStartIndexes.Length);
-        Assert.True(npcStartIndexes.SequenceEqual(npcStartIndexes.Order()));
-        Assert.All(npcStartIndexes, index => Assert.InRange(index, 1, match.Territories.Count - 2));
+        Assert.Equal(8, firstStarts.Distinct().Count());
+        Assert.Equal(8, secondStarts.Distinct().Count());
+        Assert.False(firstStarts.SequenceEqual(secondStarts));
     }
 }

@@ -7,20 +7,23 @@ public sealed class CardiffMatchService
     private readonly GameMapService mapService;
     private readonly CardiffPostcodeTerritoryRepository postcodeTerritoryRepository;
     private readonly CardiffTerritoryFeatureRepository territoryFeatureRepository;
+    private readonly Random random;
 
     public CardiffMatchService(GameMapService mapService)
-        : this(mapService, new CardiffPostcodeTerritoryRepository(), new CardiffTerritoryFeatureRepository())
+        : this(mapService, new CardiffPostcodeTerritoryRepository(), new CardiffTerritoryFeatureRepository(), Random.Shared)
     {
     }
 
     public CardiffMatchService(
         GameMapService mapService,
         CardiffPostcodeTerritoryRepository postcodeTerritoryRepository,
-        CardiffTerritoryFeatureRepository territoryFeatureRepository)
+        CardiffTerritoryFeatureRepository territoryFeatureRepository,
+        Random? random = null)
     {
         this.mapService = mapService;
         this.postcodeTerritoryRepository = postcodeTerritoryRepository;
         this.territoryFeatureRepository = territoryFeatureRepository;
+        this.random = random ?? Random.Shared;
     }
 
     public MatchSnapshot CreateCardiffMatch()
@@ -34,7 +37,7 @@ public sealed class CardiffMatchService
         var factions = CreateFactions();
         var postcodeFeatures = postcodeTerritoryRepository.Load();
         var territoryFeatures = territoryFeatureRepository.Load();
-        var startIndexes = CreateStartIndexes(postcodeFeatures.Count);
+        var startIndexes = CreateStartIndexes(postcodeFeatures.Count, factions.Select(faction => faction.Id).ToArray(), random);
         var factionByStartIndex = startIndexes.ToDictionary(pair => pair.Value, pair => pair.Key);
         var territories = postcodeFeatures
             .Select((feature, index) => CreateTerritory(
@@ -85,24 +88,26 @@ public sealed class CardiffMatchService
         new("npc-6", "NPC 6", FactionKind.Npc, "#8b5a2b")
     ];
 
-    private static IReadOnlyDictionary<string, int> CreateStartIndexes(int territoryCount)
+    private static IReadOnlyDictionary<string, int> CreateStartIndexes(int territoryCount, IReadOnlyList<string> factionIds, Random random)
     {
         if (territoryCount < 8)
         {
             throw new InvalidOperationException("Cardiff postcode territory data must contain at least 8 territories.");
         }
 
-        return new Dictionary<string, int>
+        if (factionIds.Count != 8)
         {
-            ["human-1"] = 0,
-            ["human-2"] = territoryCount - 1,
-            ["npc-1"] = territoryCount / 7,
-            ["npc-2"] = territoryCount * 2 / 7,
-            ["npc-3"] = territoryCount * 3 / 7,
-            ["npc-4"] = territoryCount * 4 / 7,
-            ["npc-5"] = territoryCount * 5 / 7,
-            ["npc-6"] = territoryCount * 6 / 7
-        };
+            throw new InvalidOperationException("Cardiff match setup expects exactly 8 factions.");
+        }
+
+        var availableIndexes = Enumerable.Range(0, territoryCount)
+            .OrderBy(_ => random.Next())
+            .Take(factionIds.Count)
+            .ToArray();
+
+        return factionIds
+            .Select((factionId, index) => new { factionId, startIndex = availableIndexes[index] })
+            .ToDictionary(item => item.factionId, item => item.startIndex);
     }
 
     private static MatchTerritoryDto CreateTerritory(
