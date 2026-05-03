@@ -52,7 +52,9 @@ public sealed record MatchTerritoryDto(
     double AreaSquareKm,
     string? OwnerFactionId,
     TerritoryStats Stats,
-    string? Postcode);
+    string? Postcode,
+    TerritoryFeatureSummary Features,
+    IReadOnlyList<MapCoordinateDto> BoundaryCoordinates);
 
 public sealed record MatchArmyDto(
     string Id,

@@ -130,7 +130,9 @@ public sealed class CardiffMatchService
             AreaSquareKm: features.AreaSquareKm,
             OwnerFactionId: ownerFactionId,
             Stats: TerritoryStatCalculator.Calculate(features, Ruleset.Default),
-            Postcode: feature.Postcode);
+            Postcode: feature.Postcode,
+            Features: features,
+            BoundaryCoordinates: feature.BoundaryCoordinates);
     }
 
     private static IReadOnlyList<MatchRouteDto> CreateRoutes(IReadOnlyList<MatchTerritoryDto> territories)
