@@ -79,8 +79,11 @@ Owns ASP.NET Core delivery:
 - SignalR hubs
 - anonymous player session handling
 - request/response mapping
+- authoritative map and game data response DTOs
 - dependency injection composition
 - API documentation
+
+Map data and game data must always be returned from the API layer. The frontend must not own or store canonical map geometry, territory data, match state, rules data, or game progress outside API responses and realtime server events.
 
 ### Game.Tests
 
@@ -397,6 +400,8 @@ Frontend state split:
 - SignalR event handling for realtime match updates
 - local React state for selected territory, selected army, hovered route, open panels, and UI-only details
 
+The frontend must treat map data and game data as API-owned server state. It may cache API responses through TanStack Query and apply SignalR updates from the server, but it must not define, duplicate, or persist authoritative map geometry, territory data, match state, rules data, or game progress in frontend code.
+
 ## Testing Strategy
 
 Prioritize backend domain tests first.
@@ -442,6 +447,7 @@ Frontend/browser tests should cover:
 - Keep database-specific logic in infrastructure.
 - Keep web transport logic in API or FastAPI gateway layers.
 - Prefer explicit DTOs at API boundaries.
+- Always return map data and game data from the API layer; do not store canonical game or map data in the frontend.
 - Do not let frontend calculations become authoritative.
 - Add tests for formulas before implementing dependent behavior.
 - Keep MVP scope small enough to produce a playable loop before adding diplomacy, fog of war, unit types, or building systems.
