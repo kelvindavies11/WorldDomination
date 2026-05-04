@@ -1,4 +1,5 @@
 import { captureExpansionFillPaint, ownerColorForTerritory, territoryFillPaint } from "./mapOwnershipStyles.mjs";
+import { shouldLoadGames } from "./lobbyLoading.mjs";
 import { routeBetween as findRouteBetween, validTargetTerritoryIds as findValidTargetTerritoryIds } from "./matchRoutes.mjs";
 import { widgetHiddenClass, widgetToggleLabel } from "./widgetVisibility.mjs";
 
@@ -6,6 +7,7 @@ const app = document.querySelector("#app");
 
 const state = {
   games: [],
+  gamesLoaded: false,
   loading: false,
   error: null,
   creating: false,
@@ -64,7 +66,12 @@ function shell(content) {
 }
 
 function renderGamesPage() {
-  if (!state.loading && state.games.length === 0 && !state.error) {
+  if (shouldLoadGames({
+    loading: state.loading,
+    gamesLoaded: state.gamesLoaded,
+    gameCount: state.games.length,
+    error: state.error
+  })) {
     void loadGames();
   }
 
@@ -624,6 +631,7 @@ async function loadGames() {
     }
 
     state.games = await response.json();
+    state.gamesLoaded = true;
   } catch (error) {
     state.error = error instanceof Error ? error.message : "Games could not be loaded.";
   } finally {
@@ -697,6 +705,7 @@ async function createGame(form) {
 
     await response.json();
     state.games = [];
+    state.gamesLoaded = false;
     window.history.pushState({}, "", routes.games);
     await loadGames();
   } catch (error) {
