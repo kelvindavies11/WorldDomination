@@ -1,5 +1,7 @@
 import { captureExpansionFillPaint, ownerColorForTerritory, territoryFillPaint } from "./mapOwnershipStyles.mjs";
+import { createGameFormMarkup, defaultTerritoryCount } from "./createGameMarkup.mjs";
 import { shouldLoadGames } from "./lobbyLoading.mjs";
+import { emptyLobbyMarkup } from "./lobbyMarkup.mjs";
 import { routeBetween as findRouteBetween, validTargetTerritoryIds as findValidTargetTerritoryIds } from "./matchRoutes.mjs";
 import { widgetHiddenClass, widgetToggleLabel } from "./widgetVisibility.mjs";
 
@@ -91,7 +93,7 @@ function renderGamesPage() {
 
 function gamesTable(games) {
   if (games.length === 0) {
-    return `<section class="card"><h2>No games available</h2><p class="muted">Create a game to open the lobby.</p></section>`;
+    return emptyLobbyMarkup(routes.create);
   }
 
   return `
@@ -131,34 +133,7 @@ function renderCreatePage() {
     </div>
     <section class="card">
       ${state.createError ? `<div class="status error"><p>${escapeHtml(state.createError)}</p></div>` : ""}
-      <form class="form" data-action="create-game">
-        <div class="field">
-          <label for="name">Game name</label>
-          <input id="name" name="name" value="Cardiff Skirmish" required>
-        </div>
-        <div class="field">
-          <label for="mapArea">Map area</label>
-          <select id="mapArea" name="mapArea">
-            <option>Cardiff</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="maxHumanPlayers">Max human players</label>
-          <input id="maxHumanPlayers" name="maxHumanPlayers" value="2" inputmode="numeric" required>
-        </div>
-        <div class="field">
-          <label for="npcFactions">NPC factions</label>
-          <input id="npcFactions" name="npcFactions" value="6" inputmode="numeric" required>
-        </div>
-        <div class="field">
-          <label for="territoryCount">Territories</label>
-          <input id="territoryCount" name="territoryCount" value="100" inputmode="numeric" required>
-        </div>
-        <div class="actions">
-          <button type="submit">${state.creating ? "Creating..." : "Create Game"}</button>
-          <a class="button secondary" href="${routes.games}" data-link>Cancel</a>
-        </div>
-      </form>
+      ${createGameFormMarkup({ creating: state.creating })}
     </section>
   `);
 }
@@ -688,7 +663,7 @@ async function createGame(form) {
     mapArea: stringValue(formData, "mapArea"),
     maxHumanPlayers: numberValue(formData, "maxHumanPlayers"),
     npcFactions: numberValue(formData, "npcFactions"),
-    territoryCount: numberValue(formData, "territoryCount")
+    territoryCount: defaultTerritoryCount
   };
 
   try {
