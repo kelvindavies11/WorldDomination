@@ -711,7 +711,15 @@ input[type="range"] {
   z-index: -1;
   overflow: hidden;
   border-radius: 50%;
-  background: rgba(8, 13, 18, 0.94);
+  background:
+    conic-gradient(
+      from -90deg,
+      #17324a 0deg 72deg,
+      #17324a 72deg 144deg,
+      #17324a 144deg 216deg,
+      #17324a 216deg 288deg,
+      #17324a 288deg 360deg
+    );
   box-shadow: 0 18px 38px rgba(0, 0, 0, 0.46);
   color: var(--ink);
   pointer-events: none;
@@ -758,14 +766,35 @@ input[type="range"] {
   background: var(--map-dark);
   box-shadow:
     0 0 0 2px rgba(190, 213, 213, 0.12),
-    0 0 0 999px rgba(190, 213, 213, 0.06);
+    0 0 0 999px rgba(190, 213, 213, 0.16);
   transform: translate(-50%, -50%);
+}
+
+.territory-action-info-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      from -90deg,
+      transparent 0deg 70deg,
+      rgba(190, 213, 213, 0.32) 70deg 72deg,
+      transparent 72deg 142deg,
+      rgba(190, 213, 213, 0.32) 142deg 144deg,
+      transparent 144deg 214deg,
+      rgba(190, 213, 213, 0.32) 214deg 216deg,
+      transparent 216deg 286deg,
+      rgba(190, 213, 213, 0.32) 286deg 288deg,
+      transparent 288deg 358deg,
+      rgba(190, 213, 213, 0.32) 358deg 360deg
+    );
 }
 
 .territory-info-slice {
   position: absolute;
   inset: 0;
-  background: #17324a;
   color: #9fd3ff;
 }
 
@@ -785,28 +814,23 @@ input[type="range"] {
 }
 
 .territory-info-slice-economy {
-  clip-path: polygon(50% 50%, 50% 0, 97.6% 34.5%);
-  --info-angle: 306deg;
+  --info-angle: 36deg;
 }
 
 .territory-info-slice-defense {
-  clip-path: polygon(50% 50%, 97.6% 34.5%, 79.4% 90.5%);
-  --info-angle: 18deg;
+  --info-angle: 108deg;
 }
 
 .territory-info-slice-mobility {
-  clip-path: polygon(50% 50%, 79.4% 90.5%, 20.6% 90.5%);
-  --info-angle: 90deg;
+  --info-angle: 180deg;
 }
 
 .territory-info-slice-value {
-  clip-path: polygon(50% 50%, 20.6% 90.5%, 2.4% 65.5%);
-  --info-angle: 162deg;
+  --info-angle: 252deg;
 }
 
 .territory-info-slice-army {
-  clip-path: polygon(50% 50%, 2.4% 65.5%, 50% 0);
-  --info-angle: 234deg;
+  --info-angle: 324deg;
 }
 
 .territory-info-slice b {
