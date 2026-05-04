@@ -20,9 +20,7 @@ export function territoryActionMenuMarkup(menu) {
       ${menu.showInfo ? territoryInfoRingMarkup(menu.info, menu.infoHiding) : ""}
       <div class="territory-action-wheel">
         ${actions.map(actionSliceMarkup).join("")}
-        <div class="territory-action-menu-center" aria-hidden="true">
-          ${menu.showInfo ? centerArmyMarkup(menu.info?.armyStrength) : ""}
-        </div>
+        <div class="territory-action-menu-center" aria-hidden="true"></div>
       </div>
     </div>
   `;
@@ -64,6 +62,7 @@ function territoryInfoRingMarkup(info, isHiding = false) {
       ${infoSliceMarkup("defense", info.defense)}
       ${infoSliceMarkup("mobility", info.mobility)}
       ${infoSliceMarkup("value", info.strategicValue)}
+      ${infoSliceMarkup("army", info.armyStrength)}
     </aside>
   `;
 }
@@ -71,18 +70,11 @@ function territoryInfoRingMarkup(info, isHiding = false) {
 function infoSliceMarkup(kind, value) {
   return `
     <div class="territory-info-slice territory-info-slice-${kind}">
-      ${infoMetricIcon(kind)}
-      <b>${Number.isFinite(value) ? value : "-"}</b>
+      <span class="territory-info-content">
+        ${infoMetricIcon(kind)}
+        <b>${Number.isFinite(value) ? value : "-"}</b>
+      </span>
     </div>
-  `;
-}
-
-function centerArmyMarkup(value) {
-  return `
-    <span class="territory-info-army">
-      ${infoMetricIcon("army")}
-      <b>${Number.isFinite(value) ? value : 0}</b>
-    </span>
   `;
 }
 

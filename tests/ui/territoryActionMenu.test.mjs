@@ -63,7 +63,8 @@ test("territory action menu renders secondary info circle", () => {
   assert.match(markup, /class="territory-info-slice territory-info-slice-defense"/);
   assert.match(markup, /class="territory-info-slice territory-info-slice-mobility"/);
   assert.match(markup, /class="territory-info-slice territory-info-slice-value"/);
-  assert.match(markup, /class="territory-info-army"/);
+  assert.match(markup, /class="territory-info-slice territory-info-slice-army"/);
+  assert.doesNotMatch(markup, /class="territory-info-army"/);
   assert.doesNotMatch(markup, /Cardiff Bay/);
   assert.doesNotMatch(markup, /CF10 5/);
   assert.doesNotMatch(markup, /Neutral territory/);

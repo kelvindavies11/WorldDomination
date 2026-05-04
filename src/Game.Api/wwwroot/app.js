@@ -178,17 +178,6 @@ function renderMatchPage() {
               <p class="muted" data-selected-owner>${selectedTerritoryOwnerText()}</p>
             </div>
 
-            <div class="stat-list" data-selected-stats>
-              ${territoryStatsMarkup(selectedTerritory())}
-            </div>
-
-            <div class="panel-section">
-              <h3>Army</h3>
-              <div class="army-card" data-selected-army>
-                ${selectedArmyMarkup(selectedTerritory())}
-              </div>
-            </div>
-
             <div class="panel-section" data-movement-panel>
               ${movementPanelMarkup()}
             </div>
@@ -332,14 +321,6 @@ function selectedTerritoryOwnerText() {
   return owner
     ? `Controlled by ${owner.name}`
     : "Neutral territory";
-}
-
-function selectedArmyMarkup(territory) {
-  const strength = armyStrengthForTerritory(territory?.id, territory?.ownerFactionId);
-  return `
-    <span class="army-strength">${strength}</span>
-    <span class="muted">${strength > 0 ? "available strength" : "no army stationed"}</span>
-  `;
 }
 
 function armyStrengthForTerritory(territoryId, factionId) {
@@ -575,31 +556,6 @@ function territorySelectionColor() {
 function selectedExpansionTargetColor() {
   const source = state.matchSnapshot?.territories?.find(territory => territory.id === state.selectedSourceTerritoryId);
   return ownerColorForTerritory({ ownerFactionId: source?.ownerFactionId ?? null }, state.matchSnapshot?.factions ?? []);
-}
-
-function territoryStatsMarkup(territory) {
-  const stats = territory?.stats ?? {
-    economy: 74,
-    defense: 58,
-    mobility: 82,
-    strategicValue: 77
-  };
-
-  return `
-    ${statItem("Economy", stats.economy)}
-    ${statItem("Defense", stats.defense)}
-    ${statItem("Mobility", stats.mobility)}
-    ${statItem("Value", stats.strategicValue)}
-  `;
-}
-
-function statItem(label, value) {
-  return `
-    <div class="stat-item">
-      <span>${label}</span>
-      <strong>${Math.round(value)}</strong>
-    </div>
-  `;
 }
 
 function leaderboardMarkup() {
@@ -1368,16 +1324,6 @@ function updateMatchDataInPlace() {
   const selectedPostcode = document.querySelector("[data-selected-postcode]");
   if (selectedPostcode) {
     selectedPostcode.textContent = selectedTerritoryPostcodeText();
-  }
-
-  const selectedStats = document.querySelector("[data-selected-stats]");
-  if (selectedStats) {
-    selectedStats.innerHTML = territoryStatsMarkup(selected);
-  }
-
-  const selectedArmy = document.querySelector("[data-selected-army]");
-  if (selectedArmy) {
-    selectedArmy.innerHTML = selectedArmyMarkup(selected);
   }
 
   const movementPanel = document.querySelector("[data-movement-panel]");
