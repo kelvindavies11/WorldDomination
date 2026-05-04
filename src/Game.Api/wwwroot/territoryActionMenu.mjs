@@ -17,7 +17,7 @@ export function territoryActionMenuMarkup(menu) {
 
   return `
     <div class="territory-action-menu is-offset-right" data-territory-action-menu data-territory-id="${escapeHtml(menu.territoryId)}" style="--menu-x: ${x}px; --menu-y: ${y}px;" role="menu" aria-label="Territory actions">
-      ${menu.showInfo ? territoryInfoRingMarkup(menu.info) : ""}
+      ${menu.showInfo ? territoryInfoRingMarkup(menu.info, menu.infoHiding) : ""}
       <div class="territory-action-wheel">
         ${actions.map(actionSliceMarkup).join("")}
         <div class="territory-action-menu-center" aria-hidden="true">
@@ -31,7 +31,13 @@ export function territoryActionMenuMarkup(menu) {
 export function applyTerritoryInfoAction(state) {
   if (state.territoryActionMenu?.territoryId) {
     state.selectedTerritoryId = state.territoryActionMenu.territoryId;
-    state.territoryActionMenu.showInfo = !state.territoryActionMenu.showInfo;
+    if (state.territoryActionMenu.showInfo && !state.territoryActionMenu.infoHiding) {
+      state.territoryActionMenu.infoHiding = true;
+      return;
+    }
+
+    state.territoryActionMenu.showInfo = true;
+    state.territoryActionMenu.infoHiding = false;
   }
 }
 
@@ -47,13 +53,13 @@ function actionSliceMarkup(action) {
   `;
 }
 
-function territoryInfoRingMarkup(info) {
+function territoryInfoRingMarkup(info, isHiding = false) {
   if (!info) {
     return "";
   }
 
   return `
-    <aside class="territory-action-info-ring" aria-label="Selected territory info">
+    <aside class="territory-action-info-ring${isHiding ? " is-hiding" : ""}" aria-label="Selected territory info">
       ${infoSliceMarkup("economy", info.economy)}
       ${infoSliceMarkup("defense", info.defense)}
       ${infoSliceMarkup("mobility", info.mobility)}

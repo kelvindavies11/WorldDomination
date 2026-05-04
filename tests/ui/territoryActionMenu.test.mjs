@@ -100,7 +100,27 @@ test("info action hides the menu info ring when clicked again", () => {
   applyTerritoryInfoAction(state);
 
   assert.equal(state.selectedTerritoryId, "cf11-neutral");
-  assert.equal(state.territoryActionMenu.showInfo, false);
+  assert.equal(state.territoryActionMenu.showInfo, true);
+  assert.equal(state.territoryActionMenu.infoHiding, true);
+});
+
+test("territory action menu renders hiding state for info ring", () => {
+  const markup = territoryActionMenuMarkup({
+    territoryId: "cf11-neutral",
+    x: 144,
+    y: 96,
+    showInfo: true,
+    infoHiding: true,
+    info: {
+      economy: 42,
+      defense: 61,
+      mobility: 77,
+      strategicValue: 58,
+      armyStrength: 12
+    }
+  });
+
+  assert.match(markup, /class="territory-action-info-ring is-hiding"/);
 });
 
 test("map movement hides the territory action menu", () => {

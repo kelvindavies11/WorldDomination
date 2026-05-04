@@ -738,6 +738,10 @@ input[type="range"] {
   animation: territory-info-slide-out 180ms ease-out both;
 }
 
+.territory-action-info-ring.is-hiding {
+  animation: territory-info-slide-in 160ms ease-in both;
+}
+
 @keyframes territory-info-slide-out {
   from {
     opacity: 0;
@@ -747,6 +751,18 @@ input[type="range"] {
   to {
     opacity: 1;
     transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes territory-info-slide-in {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(-18px) scale(0.72);
   }
 }
 
@@ -794,26 +810,26 @@ input[type="range"] {
 
 .territory-info-slice-economy {
   clip-path: polygon(50% 50%, 50% 0, 100% 0, 100% 50%);
-  padding-left: 108px;
-  padding-bottom: 78px;
+  padding-left: 126px;
+  padding-bottom: 96px;
 }
 
 .territory-info-slice-defense {
   clip-path: polygon(50% 50%, 100% 50%, 100% 100%, 50% 100%);
-  padding-left: 108px;
-  padding-top: 78px;
+  padding-left: 126px;
+  padding-top: 96px;
 }
 
 .territory-info-slice-mobility {
   clip-path: polygon(50% 50%, 50% 100%, 0 100%, 0 50%);
-  padding-right: 108px;
-  padding-top: 78px;
+  padding-right: 126px;
+  padding-top: 96px;
 }
 
 .territory-info-slice-value {
   clip-path: polygon(50% 50%, 0 50%, 0 0, 50% 0);
-  padding-right: 108px;
-  padding-bottom: 78px;
+  padding-right: 126px;
+  padding-bottom: 96px;
 }
 
 .territory-info-slice b,

@@ -35,6 +35,7 @@ let activeMap = null;
 let mapInitializedForPath = null;
 let hoveredTerritoryId = null;
 let captureExpansionAnimationFrame = null;
+let territoryInfoHideTimeout = null;
 
 const FALLBACK_MAP_VIEW = {
   name: "Cardiff",
@@ -460,6 +461,22 @@ function showTerritoryActionInfo() {
   }
   applyTerritoryInfoAction(state);
   updateMatchDataInPlace();
+
+  if (territoryInfoHideTimeout !== null) {
+    clearTimeout(territoryInfoHideTimeout);
+    territoryInfoHideTimeout = null;
+  }
+
+  if (state.territoryActionMenu?.infoHiding) {
+    territoryInfoHideTimeout = setTimeout(() => {
+      if (state.territoryActionMenu?.infoHiding) {
+        state.territoryActionMenu.showInfo = false;
+        state.territoryActionMenu.infoHiding = false;
+        updateMatchDataInPlace();
+      }
+      territoryInfoHideTimeout = null;
+    }, 170);
+  }
 }
 
 function updateGameWidgetVisibilityState(widget) {
@@ -521,6 +538,10 @@ function hideTerritoryMenuForMapMove() {
     return;
   }
 
+  if (territoryInfoHideTimeout !== null) {
+    clearTimeout(territoryInfoHideTimeout);
+    territoryInfoHideTimeout = null;
+  }
   hideTerritoryActionMenu(state);
   updateMatchDataInPlace();
 }
