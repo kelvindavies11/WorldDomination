@@ -14,15 +14,38 @@ The game includes both human players and NPC factions.
 
 The win condition is total domination.
 
-A faction wins by controlling 100% of the generated map territory.
+A faction wins by controlling 100% of the generated map territory (or the configured `winningControlPercentage` threshold for custom games).
 
 The leaderboard tracks each faction's percentage of total map area controlled. Because territories are random sizes, map control is calculated by controlled area, not territory count.
+
+### All Human Players Eliminated
+
+If every human faction loses all of its territories, the game ends immediately. The NPC faction with the highest map-control percentage at that moment is declared the winner. This applies even if no NPC has reached the configured winning-control threshold.
+
+### Stalemate
+
+If no territory changes ownership for **5 consecutive minutes**, the game ends automatically as a stalemate with no winner. This prevents games from stalling indefinitely when all fronts are locked.
+
+The stalemate timer resets any time a territory is captured — by a human player or an NPC. If the timer expires the server broadcasts a `GameEnded` event with no winner faction and the game is marked `Ended`.
 
 ## Starting Positions
 
 All factions start small.
 
-Human players choose their own starting HQ territory. Human starting positions are not filtered for balance; players may choose any territory.
+### Custom Game Lobby
+
+Custom games follow a pregame lobby phase before the match starts:
+
+1. The host creates a game, which allocates NPC faction slots and assigns NPC starting positions randomly at creation time. NPC positions are fixed for the lifetime of the game and are deterministic per game ID.
+2. The host and other players join the game. Each player provides a display name and is assigned a human faction slot in join order (`human-1`, `human-2`, and so on).
+3. Each joined player selects their own starting HQ territory from any unclaimed neutral territory. Human starting positions are not filtered for balance; players may choose any neutral territory not already taken by an NPC or another player.
+4. Once every joined player has selected a starting territory, the host can start the game.
+5. Starting the game locks all position selections and transitions the match to the active `Started` state. No further players can join after the game has started.
+6. If a game is ended from the lobby or match UI, it remains visible in the game list in an `Ended` state for reference and cannot be joined again.
+
+### Default Match
+
+The built-in Cardiff match (`cardiff-match`) starts in `Started` state immediately. All human and NPC positions are randomly assigned at match creation. There is no pregame lobby for the default match.
 
 NPC factions are placed randomly but evenly across the map using spacing rules so they do not cluster unfairly.
 
@@ -40,6 +63,18 @@ Factions expand by moving armies into neutral or enemy territories.
 
 Capturing territories increases the faction's map-control percentage and may increase economy, mobility, defense, or strategic reach depending on the territory's features.
 
+### Attacking Enemy Territories
+
+Human players can attack an adjacent enemy territory using the **Attack** button in the territory action menu. To initiate an attack:
+
+1. Click on one of your own territories on the map — the action menu appears.
+2. The **Attack** button is enabled when at least one adjacent territory is owned by another faction. The **Expand** button is enabled when at least one adjacent neutral territory exists.
+3. Click **Attack** (or **Expand**) to enter the move-order panel.
+4. Select the target territory and choose how many troops to send.
+5. Click **Send** to dispatch the army.
+
+Combat resolves when the army arrives using the base combat model (see **Combat Rules** below). The territory is captured only if the attacker wins.
+
 ## Core MVP Loop
 
 The first playable version should implement this loop:
@@ -48,18 +83,21 @@ The first playable version should implement this loop:
 2. Load OpenStreetMap visuals for that area.
 3. Generate random territory overlays on top of the map.
 4. Calculate Economy, Defense, Mobility, and Strategic Value for each territory from OSM features.
-5. Let each human player choose any territory as their starting HQ.
-6. Place NPC starting HQ territories randomly but evenly across the map.
-7. Give every faction one HQ territory and one starting army.
-8. Let players and NPCs send armies into neutral or enemy territories.
-9. Resolve all movement with visible ETAs.
-10. Capture neutral territories when armies arrive.
-11. Start combat when armies arrive in enemy territories.
-12. Allow connected nearby armies to reinforce active battles if they arrive before the battle ends.
-13. Permanently eliminate factions that lose all territories.
-14. Credit the final captor with the elimination.
-15. Continuously update the leaderboard with map-control percentage, rank, elimination count, and eliminated status.
-16. End the match when one faction controls 100% of the map.
+5. Assign NPC starting HQ territories randomly at game creation.
+6. Allow players to join the game and select their own starting HQ territory.
+7. Once all joined players have selected a start, the host starts the game.
+8. Give every faction one HQ territory and one starting army.
+9. Let players and NPCs send armies into neutral or enemy territories.
+10. Resolve all movement with visible ETAs.
+11. Capture neutral territories when armies arrive.
+12. Start combat when armies arrive in enemy territories.
+13. Allow connected nearby armies to reinforce active battles if they arrive before the battle ends.
+14. Permanently eliminate factions that lose all territories.
+15. Credit the final captor with the elimination.
+16. Continuously update the leaderboard with map-control percentage, rank, elimination count, and eliminated status.
+17. End the match when one faction controls 100% of the map.
+
+Pregame lobby updates, territory ownership changes, and leaderboard changes should be delivered from the API layer so all connected human players see the same state at the same time.
 
 The MVP should exclude:
 
@@ -85,7 +123,39 @@ The first match should use:
 - neutral territories: all territories not chosen or assigned as starts
 - target match duration: 20-45 minutes for early testing
 
-## Army Movement
+## NPC Behaviour
+
+NPC factions are controlled by the server and act automatically on a fixed tick interval (every 5 seconds).
+
+### NPC Nature
+
+Every NPC faction is assigned one of three natures at game creation. The nature determines how often the NPC expands and how aggressively it attacks:
+
+| Nature | Tick frequency | Attack behaviour |
+|---|---|---|
+| **Active** | Every tick | Aggressively attacks adjacent enemy territories — 65% preference for enemies over neutral expansion |
+| **Conservative** | Every other tick (1, 3, 5 …) | Expands into neutral freely; attacks an enemy only when its attacking garrison is strictly larger than the defending garrison |
+| **Passive** | Every third tick (1, 4, 7 …) | Never attacks enemy territories; only expands into unowned neutral territory |
+
+Natures are assigned cyclically: NPC 1 is Active, NPC 2 is Conservative, NPC 3 is Passive, NPC 4 is Active, and so on.
+
+The NPC's nature is visible in its faction name (for example, "NPC 1 (Active)") on the leaderboard and territory panel.
+
+An Active NPC is the most aggressive — it attacks neighbouring enemy territories relentlessly and expands into neutral territory when no enemies are adjacent. A Passive NPC expands slowly and never initiates attacks against other factions. A Conservative NPC falls in between.
+
+All NPC factions still receive army reinforcements every tick regardless of their nature.
+
+## Army Growth
+
+Every started game produces a reinforcement tick every 5 seconds. Each territory that is owned and currently has a stationed army generates new troops for its owning faction:
+
+  Reinforcement per territory per tick = max(1, Economy / 10)
+
+Territories with higher Economy stats — such as city centres with many shops, offices, and commercial areas — produce more troops. This means that capturing economically productive territory provides a compounding advantage over time.
+
+The leaderboard **Revenue** figure shows a faction's total Economy score across all owned territories, and **Growth** shows the combined growth rate. Both update live via the match feed.
+
+
 
 The first playable movement model is territory-to-territory army movement.
 
@@ -103,6 +173,18 @@ Players should be able to see at least:
 - army size, unless fog-of-war rules are added later
 - ETA
 - route type, such as land, road, rail, air, or sea
+
+## Troop Redistribution
+
+A player may move troops from one of their own territories to any directly connected territory they also own.
+
+Rules:
+
+- Source and target must both be owned by the acting faction.
+- The source and target must share an allowed route.
+- At least one troop must remain in the source territory after the transfer (garrison rule).
+- Troops merge into the existing army at the target territory — no combat occurs.
+- The same ETA rules apply as for any other movement.
 
 ## Physical Movement Rules
 
@@ -213,6 +295,13 @@ faction_power_growth =
   total_controlled_strategic_value +
   connected_mobility_bonus
 ```
+
+Current MVP comparison detail:
+
+- faction revenue is the sum of `Economy` across all currently controlled territories
+- connected mobility bonus is the sum of `Mobility` from owned territories that have at least one allowed route to another owned territory
+- faction army growth is exposed as `Revenue + total controlled Strategic Value + connected mobility bonus`
+- the authoritative match snapshot and leaderboard rows should include `territoryCount`, `revenue`, `armyStrength`, and `armyGrowth` so clients compare players from API data instead of recalculating locally
 
 Default support formula:
 

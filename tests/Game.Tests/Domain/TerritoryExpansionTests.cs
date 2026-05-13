@@ -42,6 +42,26 @@ public sealed class TerritoryExpansionTests
     }
 
     [Fact]
+    public void AllowsEnemyTargetForGenericTakeover()
+    {
+        var result = TerritoryExpansion.ValidateTakeover(new TerritoryTakeoverRequest(
+            "human-1", "source", "human-1", "target", "npc-1", 100, 40, HasAllowedRoute: true));
+
+        Assert.True(result.IsValid);
+        Assert.Null(result.Error);
+    }
+
+    [Fact]
+    public void RejectsTargetAlreadyOwnedByActingFaction()
+    {
+        var result = TerritoryExpansion.ValidateTakeover(new TerritoryTakeoverRequest(
+            "human-1", "source", "human-1", "target", "human-1", 100, 40, HasAllowedRoute: true));
+
+        Assert.False(result.IsValid);
+        Assert.Equal("Target territory is already owned by the acting faction.", result.Error);
+    }
+
+    [Fact]
     public void RejectsStrengthAboveAvailableArmy()
     {
         var result = TerritoryExpansion.ValidateNeutralCapture(new NeutralCaptureRequest(
@@ -62,5 +82,23 @@ public sealed class TerritoryExpansionTests
         Assert.Equal("human-1", result.TargetOwnerFactionId);
         Assert.Equal(60, result.SourceArmyStrength);
         Assert.Equal(40, result.TargetArmyStrength);
+    }
+
+    [Fact]
+    public void ResolvesOccupiedTerritoryBattleUsingDefenderArmyAndDefense()
+    {
+        var result = TerritoryExpansion.ResolveTakeover(new TerritoryTakeoverArmyState(
+            ActingFactionId: "human-1",
+            TargetOwnerFactionId: "npc-1",
+            SourceArmyStrength: 120,
+            RequestedStrength: 100,
+            DefenderArmyStrength: 80,
+            TerritoryDefense: 100));
+
+        Assert.Equal("npc-1", result.TargetOwnerFactionId);
+        Assert.Equal(20, result.SourceArmyStrength);
+        Assert.Equal(13, result.TargetArmyStrength);
+        Assert.NotNull(result.Combat);
+        Assert.Equal(CombatWinner.Defender, result.Combat!.Winner);
     }
 }

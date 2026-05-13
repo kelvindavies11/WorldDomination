@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  attackImpactPaint,
+  attackTrailPaint,
   captureExpansionFillPaint,
   ownerColorForTerritory,
   territoryFillPaint
@@ -45,5 +47,52 @@ test("capture expansion fill paint stays clipped to the target polygon", () => {
       0
     ],
     "fill-outline-color": ["get", "ownerColor"]
+  });
+});
+
+test("attack trail paint brightens the attacker path before fading out", () => {
+  assert.deepEqual(attackTrailPaint(), {
+    "line-color": ["get", "attackColor"],
+    "line-width": [
+      "interpolate",
+      ["linear"],
+      ["get", "progress"],
+      0,
+      2,
+      0.7,
+      5,
+      1,
+      1.4
+    ],
+    "line-opacity": [
+      "interpolate",
+      ["linear"],
+      ["get", "progress"],
+      0,
+      0.18,
+      0.25,
+      0.92,
+      1,
+      0
+    ],
+    "line-blur": 0.5
+  });
+});
+
+test("attack impact paint flashes over the defended territory", () => {
+  assert.deepEqual(attackImpactPaint(), {
+    "fill-color": ["get", "impactColor"],
+    "fill-opacity": [
+      "interpolate",
+      ["linear"],
+      ["get", "progress"],
+      0,
+      0,
+      0.18,
+      0.38,
+      1,
+      0
+    ],
+    "fill-outline-color": ["get", "impactColor"]
   });
 });

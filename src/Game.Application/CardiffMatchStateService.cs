@@ -1,55 +1,229 @@
+using System.Collections.Concurrent;
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Game.Application;
 
 public sealed class CardiffMatchStateService
 {
-    private readonly object sync = new();
     private readonly CardiffMatchService matchService;
-    private readonly Dictionary<string, MatchSnapshot> snapshots = new(StringComparer.OrdinalIgnoreCase);
+    private readonly WalesWestMatchService? walesWestMatchService;
+    private readonly NorthWalesMatchService? northWalesMatchService;
+    private readonly MidWalesMatchService? midWalesMatchService;
+    private readonly SouthWalesMatchService? southWalesMatchService;
+    private readonly IServiceScopeFactory? scopeFactory;
 
-    public CardiffMatchStateService(CardiffMatchService matchService)
+    // Per-game semaphores — one per game ID, created lazily
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> locks = new(StringComparer.OrdinalIgnoreCase);
+
+    // In-memory fallback used by the test constructor (no DB)
+    private readonly Dictionary<string, MatchSnapshot>? testSnapshots;
+    private readonly Dictionary<string, DateTimeOffset>? testLastMovements;
+
+    // Production constructor
+    public CardiffMatchStateService(
+        CardiffMatchService matchService,
+        WalesWestMatchService walesWestMatchService,
+        NorthWalesMatchService northWalesMatchService,
+        MidWalesMatchService midWalesMatchService,
+        SouthWalesMatchService southWalesMatchService,
+        IServiceScopeFactory scopeFactory)
     {
         this.matchService = matchService;
+        this.walesWestMatchService = walesWestMatchService;
+        this.northWalesMatchService = northWalesMatchService;
+        this.midWalesMatchService = midWalesMatchService;
+        this.southWalesMatchService = southWalesMatchService;
+        this.scopeFactory = scopeFactory;
     }
 
+    // Test constructor — keeps old in-memory behaviour, no DB required
     public CardiffMatchStateService(MatchSnapshot snapshot)
     {
         matchService = new CardiffMatchService(new GameMapService());
-        snapshots[snapshot.GameId] = snapshot;
+        testSnapshots = new Dictionary<string, MatchSnapshot>(StringComparer.OrdinalIgnoreCase)
+        {
+            [snapshot.GameId] = snapshot
+        };
+        testLastMovements = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
     }
 
     public MatchSnapshot GetSnapshot(string gameId = "cardiff-match")
     {
-        lock (sync)
-        {
-            var normalizedGameId = NormalizeGameId(gameId);
-            if (!snapshots.TryGetValue(normalizedGameId, out var snapshot))
-            {
-                snapshot = matchService.CreateCardiffMatch(normalizedGameId);
-                snapshots[normalizedGameId] = snapshot;
-            }
+        var normalizedId = NormalizeGameId(gameId);
 
-            return snapshot;
+        if (testSnapshots is not null)
+        {
+            lock (testSnapshots)
+            {
+                if (!testSnapshots.TryGetValue(normalizedId, out var s))
+                {
+                    s = CreateFreshSnapshot(normalizedId, lobbyService: null);
+                    testSnapshots[normalizedId] = s;
+                }
+                return s;
+            }
+        }
+
+        var semaphore = locks.GetOrAdd(normalizedId, _ => new SemaphoreSlim(1, 1));
+        semaphore.Wait();
+        try
+        {
+            using var scope = scopeFactory!.CreateScope();
+            var repo = scope.ServiceProvider.GetRequiredService<IMatchStateRepository>();
+            var lobby = scope.ServiceProvider.GetRequiredService<GameLobbyService>();
+
+            var snapshot = repo.GetFullSnapshot(normalizedId);
+            if (snapshot is not null) return snapshot;
+
+            var fresh = CreateFreshSnapshot(normalizedId, lobby);
+            repo.SaveMutableState(normalizedId, ExtractMutableState(fresh, ResolveMapId(normalizedId, lobby)));
+            return fresh;
+        }
+        finally
+        {
+            semaphore.Release();
         }
     }
 
     public MatchSnapshot Update(string gameId, Func<MatchSnapshot, MatchSnapshot> update)
     {
-        lock (sync)
-        {
-            var normalizedGameId = NormalizeGameId(gameId);
-            if (!snapshots.TryGetValue(normalizedGameId, out var snapshot))
-            {
-                snapshot = matchService.CreateCardiffMatch(normalizedGameId);
-            }
+        var normalizedId = NormalizeGameId(gameId);
 
-            snapshot = update(snapshot);
-            snapshots[normalizedGameId] = snapshot;
-            return snapshot;
+        if (testSnapshots is not null)
+        {
+            lock (testSnapshots)
+            {
+                if (!testSnapshots.TryGetValue(normalizedId, out var s))
+                    s = CreateFreshSnapshot(normalizedId, lobbyService: null);
+                var updated = update(s);
+                testSnapshots[normalizedId] = updated;
+                return updated;
+            }
+        }
+
+        var semaphore = locks.GetOrAdd(normalizedId, _ => new SemaphoreSlim(1, 1));
+        semaphore.Wait();
+        try
+        {
+            using var scope = scopeFactory!.CreateScope();
+            var repo = scope.ServiceProvider.GetRequiredService<IMatchStateRepository>();
+            var lobby = scope.ServiceProvider.GetRequiredService<GameLobbyService>();
+
+            var current = repo.GetFullSnapshot(normalizedId)
+                ?? CreateFreshSnapshot(normalizedId, lobby);
+
+            var result = update(current);
+            repo.SaveMutableState(normalizedId, ExtractMutableState(result, ResolveMapId(normalizedId, lobby)));
+            return result;
+        }
+        finally
+        {
+            semaphore.Release();
         }
     }
 
     public MatchSnapshot Update(Func<MatchSnapshot, MatchSnapshot> update) =>
         Update("cardiff-match", update);
+
+    public void Invalidate(string gameId)
+    {
+        var normalizedId = NormalizeGameId(gameId);
+
+        if (testSnapshots is not null)
+        {
+            lock (testSnapshots) { testSnapshots.Remove(normalizedId); }
+            return;
+        }
+
+        var semaphore = locks.GetOrAdd(normalizedId, _ => new SemaphoreSlim(1, 1));
+        semaphore.Wait();
+        try
+        {
+            using var scope = scopeFactory!.CreateScope();
+            scope.ServiceProvider.GetRequiredService<IMatchStateRepository>().DeleteMutableState(normalizedId);
+        }
+        finally
+        {
+            semaphore.Release();
+        }
+    }
+
+    public void TrackTerritoryMovement(string gameId)
+    {
+        var normalizedId = NormalizeGameId(gameId);
+
+        if (testLastMovements is not null)
+        {
+            lock (testLastMovements) { testLastMovements[normalizedId] = DateTimeOffset.UtcNow; }
+            return;
+        }
+
+        // No lock needed — last-write-wins for timestamps is acceptable
+        using var scope = scopeFactory!.CreateScope();
+        scope.ServiceProvider.GetRequiredService<IMatchStateRepository>()
+            .TrackMovement(normalizedId, DateTimeOffset.UtcNow);
+    }
+
+    public DateTimeOffset? GetLastTerritoryMovementUtc(string gameId)
+    {
+        var normalizedId = NormalizeGameId(gameId);
+
+        if (testLastMovements is not null)
+        {
+            lock (testLastMovements)
+            {
+                return testLastMovements.TryGetValue(normalizedId, out var v) ? v : null;
+            }
+        }
+
+        using var scope = scopeFactory!.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<IMatchStateRepository>()
+            .GetLastMovement(normalizedId);
+    }
+
+    // ── Private helpers ──────────────────────────────────────────────────────
+
+    private MatchSnapshot CreateFreshSnapshot(string gameId, GameLobbyService? lobbyService)
+    {
+        var matchSetup = lobbyService?.GetMatchSetup(gameId);
+        if (matchSetup is null)
+            return matchService.CreateCardiffMatch(gameId);
+
+        if (string.Equals(matchSetup.MapArea, "wales-west", StringComparison.OrdinalIgnoreCase)
+            && walesWestMatchService is not null)
+            return walesWestMatchService.CreateWalesWestLobbyMatch(matchSetup);
+
+        if (string.Equals(matchSetup.MapArea, "north-wales", StringComparison.OrdinalIgnoreCase)
+            && northWalesMatchService is not null)
+            return northWalesMatchService.CreateNorthWalesLobbyMatch(matchSetup);
+
+        if (string.Equals(matchSetup.MapArea, "mid-wales", StringComparison.OrdinalIgnoreCase)
+            && midWalesMatchService is not null)
+            return midWalesMatchService.CreateMidWalesLobbyMatch(matchSetup);
+
+        if (string.Equals(matchSetup.MapArea, "south-wales", StringComparison.OrdinalIgnoreCase)
+            && southWalesMatchService is not null)
+            return southWalesMatchService.CreateSouthWalesLobbyMatch(matchSetup);
+
+        return matchService.CreateCardiffLobbyMatch(matchSetup);
+    }
+
+    private static string ResolveMapId(string gameId, GameLobbyService? lobbyService)
+    {
+        var mapArea = lobbyService?.GetMatchSetup(gameId)?.MapArea;
+        return string.IsNullOrWhiteSpace(mapArea) ? "cardiff" : mapArea.Trim().ToLowerInvariant();
+    }
+
+    private static MatchSnapshotMutableState ExtractMutableState(MatchSnapshot snapshot, string mapId) => new(
+        GameId: snapshot.GameId,
+        MapId: mapId,
+        MapArea: snapshot.MapArea,
+        SnapshotGeneratedAtUtc: snapshot.SnapshotGeneratedAtUtc,
+        GameState: snapshot.Game,
+        TerritoryOwners: snapshot.Territories.ToDictionary(t => t.Id, t => t.OwnerFactionId),
+        Armies: snapshot.Armies,
+        Factions: snapshot.Factions,
+        Routes: snapshot.Routes);
 
     private static string NormalizeGameId(string gameId) =>
         string.Equals(gameId, "cardiff", StringComparison.OrdinalIgnoreCase)

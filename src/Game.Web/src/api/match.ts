@@ -61,12 +61,25 @@ export type LeaderboardRow = {
   mapControlPercentage: number;
   eliminationCount: number;
   isEliminated: boolean;
+  territoryCount: number;
+  revenue: number;
+  armyStrength: number;
+  armyGrowth: number;
+};
+
+export type MatchGameState = {
+  status: string;
+  isStarted: boolean;
+  humanPlayers: number;
+  maxHumanPlayers: number;
+  npcFactions: number;
 };
 
 export type MatchSnapshot = {
   gameId: string;
   mapArea: string;
   snapshotGeneratedAtUtc: string;
+  game: MatchGameState;
   map: MatchMap;
   factions: MatchFaction[];
   territories: MatchTerritory[];

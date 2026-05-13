@@ -21,7 +21,7 @@ test("territory action menu renders four radial action buttons at the click poin
   assert.match(markup, /data-action="territory-menu-expand"/);
   assert.match(markup, /data-action="territory-menu-attack"/);
   assert.match(markup, /data-action="territory-menu-build"/);
-  assert.match(markup, /aria-label="Show territory info"/);
+  assert.match(markup, /aria-label="Scout territory"/);
   assert.match(markup, /class="territory-action-wheel"/);
   assert.match(markup, /class="territory-action-slice territory-action-slice-info"/);
   assert.match(markup, /class="territory-action-slice territory-action-slice-expand"/);
@@ -132,4 +132,29 @@ test("map movement hides the territory action menu", () => {
   hideTerritoryActionMenu(state);
 
   assert.equal(state.territoryActionMenu, null);
+});
+
+test("expand button is enabled when canExpand is true", () => {
+  const markup = territoryActionMenuMarkup({ territoryId: "cf10-1", x: 0, y: 0, canExpand: true });
+  // The expand button should NOT have the disabled attribute
+  const expandMatch = markup.match(/data-action="territory-menu-expand"[^>]*/);
+  assert.ok(expandMatch, "expand button rendered");
+  assert.doesNotMatch(expandMatch[0], /disabled/);
+});
+
+test("attack button is enabled when canAttack is true", () => {
+  const markup = territoryActionMenuMarkup({ territoryId: "cf10-1", x: 0, y: 0, canAttack: true });
+  const attackMatch = markup.match(/data-action="territory-menu-attack"[^>]*/);
+  assert.ok(attackMatch, "attack button rendered");
+  assert.doesNotMatch(attackMatch[0], /disabled/);
+});
+
+test("expand and attack buttons are disabled by default", () => {
+  const markup = territoryActionMenuMarkup({ territoryId: "cf10-1", x: 0, y: 0 });
+  const expandMatch = markup.match(/data-action="territory-menu-expand"[^>]*/);
+  const attackMatch = markup.match(/data-action="territory-menu-attack"[^>]*/);
+  assert.ok(expandMatch, "expand button rendered");
+  assert.ok(attackMatch, "attack button rendered");
+  assert.match(expandMatch[0], /disabled/);
+  assert.match(attackMatch[0], /disabled/);
 });

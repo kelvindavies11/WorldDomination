@@ -9,4 +9,7 @@ test("create game form does not show territory count controls", () => {
   assert.doesNotMatch(markup, /name="territoryCount"/);
   assert.doesNotMatch(markup, /for="territoryCount"/);
   assert.doesNotMatch(markup, />Territories</);
+  assert.match(markup, /name="winningControlPercentage"/);
+  assert.match(markup, /Winning control percentage/);
+  assert.match(markup, /Victory target/);
 });

@@ -4,6 +4,28 @@ namespace Game.Application;
 
 public sealed class CardiffMatchService
 {
+    private static readonly string[] HumanFactionColors =
+    [
+        "#1f8a70",
+        "#2f6fbd",
+        "#9f4fd4",
+        "#d65a31",
+        "#008c99",
+        "#bc5090"
+    ];
+
+    private static readonly string[] NpcFactionColors =
+    [
+        "#c58a1a",
+        "#b84a4a",
+        "#5965a8",
+        "#7d7f2a",
+        "#008c99",
+        "#8b5a2b",
+        "#915f2a",
+        "#4f7b55"
+    ];
+
     private readonly GameMapService mapService;
     private readonly CardiffPostcodeTerritoryRepository postcodeTerritoryRepository;
     private readonly CardiffTerritoryFeatureRepository territoryFeatureRepository;
@@ -33,8 +55,13 @@ public sealed class CardiffMatchService
 
     public MatchSnapshot CreateCardiffMatch(string gameId)
     {
+        return CreateCardiffMatch(gameId, humanPlayers: 2, npcFactions: 6);
+    }
+
+    public MatchSnapshot CreateCardiffMatch(string gameId, int humanPlayers, int npcFactions)
+    {
         var map = mapService.GetMap("cardiff");
-        var factions = CreateFactions();
+        var factions = CreateFactions(humanPlayers, npcFactions);
         var postcodeFeatures = postcodeTerritoryRepository.Load();
         var territoryFeatures = territoryFeatureRepository.Load();
         var startIndexes = CreateStartIndexes(postcodeFeatures.Count, factions.Select(faction => faction.Id).ToArray(), random);
@@ -48,56 +75,173 @@ public sealed class CardiffMatchService
             .ToList();
         var armies = startIndexes
             .Select(pair => new MatchArmyDto(
-                Id: $"army-{pair.Key}",
+                Id: $"army-{pair.Key}-{territories[pair.Value].Id}",
                 FactionId: pair.Key,
                 TerritoryId: territories[pair.Value].Id,
                 Strength: 100))
             .ToList();
         var routes = CreateRoutes(territories);
+        var resources = CreateInitialResources(factions, territories);
         var leaderboard = MapControlCalculator.CalculateLeaderboard(
             territories.Select(territory => new ControlledTerritory(
                 territory.Id,
                 territory.OwnerFactionId,
-                territory.AreaSquareKm)).ToArray(),
+                territory.AreaSquareKm,
+                territory.Stats)).ToArray(),
             factions.Select(faction => new FactionStanding(
                 faction.Id,
                 faction.Name,
-                EliminationCount: 0)).ToArray());
+                EliminationCount: 0)).ToArray(),
+            armies.Select(army => new ControlledArmy(army.FactionId, army.Strength)).ToArray(),
+            routes.Select(route => new ConnectedRoute(route.SourceTerritoryId, route.DestinationTerritoryId, route.IsAllowed)).ToArray(),
+            resources.ToDictionary(resource => resource.FactionId, resource => resource.Revenue, StringComparer.Ordinal));
 
         return new MatchSnapshot(
             GameId: gameId,
             MapArea: map.Name,
             SnapshotGeneratedAtUtc: DateTimeOffset.UtcNow,
+            Game: new MatchGameStateDto("Started", true, humanPlayers, humanPlayers, npcFactions, WinningControlPercentage: 100),
             Map: map,
             Factions: factions,
             Territories: territories,
             Armies: armies,
             Routes: routes,
-            Leaderboard: leaderboard);
+            Leaderboard: leaderboard,
+            Resources: resources);
     }
 
-    private static IReadOnlyList<MatchFactionDto> CreateFactions() =>
-    [
-        new("human-1", "Player 1", FactionKind.Human, "#1f8a70"),
-        new("human-2", "Player 2", FactionKind.Human, "#2f6fbd"),
-        new("npc-1", "NPC 1", FactionKind.Npc, "#c58a1a"),
-        new("npc-2", "NPC 2", FactionKind.Npc, "#b84a4a"),
-        new("npc-3", "NPC 3", FactionKind.Npc, "#5965a8"),
-        new("npc-4", "NPC 4", FactionKind.Npc, "#7d7f2a"),
-        new("npc-5", "NPC 5", FactionKind.Npc, "#008c99"),
-        new("npc-6", "NPC 6", FactionKind.Npc, "#8b5a2b")
-    ];
+    public MatchSnapshot CreateCardiffLobbyMatch(MatchSetupOptions setup)
+    {
+        var map = mapService.GetMap("cardiff");
+        var factions = CreateFactions(setup.HumanPlayers, setup.NpcFactions, setup.HumanPlayerNamesByFactionId);
+        var postcodeFeatures = postcodeTerritoryRepository.Load();
+        var territoryFeatures = territoryFeatureRepository.Load();
+        var humanStartsByTerritoryId = setup.HumanStartTerritoriesByFactionId
+            .ToDictionary(pair => pair.Value, pair => pair.Key, StringComparer.OrdinalIgnoreCase);
+        var npcFactionIds = factions
+            .Where(faction => faction.Kind == FactionKind.Npc)
+            .Select(faction => faction.Id)
+            .ToArray();
+        var npcStartIndexes = CreateStartIndexes(
+            postcodeFeatures.Count,
+            npcFactionIds,
+            new Random(DeterministicSeed(setup.GameId)));
+        var npcFactionByStartIndex = npcStartIndexes.ToDictionary(pair => pair.Value, pair => pair.Key);
+        var territories = postcodeFeatures
+            .Select((feature, index) =>
+            {
+                var territoryId = $"postcode-{NormalizePostcode(feature.Postcode)}";
+                var ownerFactionId = humanStartsByTerritoryId.GetValueOrDefault(territoryId)
+                    ?? npcFactionByStartIndex.GetValueOrDefault(index);
+
+                return CreateTerritory(feature, index, ownerFactionId, territoryFeatures);
+            })
+            .ToList();
+        var armies = territories
+            .Where(territory => !string.IsNullOrWhiteSpace(territory.OwnerFactionId))
+            .Select(territory => new MatchArmyDto(
+                Id: $"army-{territory.OwnerFactionId}-{territory.Id}",
+                FactionId: territory.OwnerFactionId!,
+                TerritoryId: territory.Id,
+                Strength: 100))
+            .ToList();
+        var routes = CreateRoutes(territories);
+        var resources = CreateInitialResources(factions, territories);
+        var leaderboard = MapControlCalculator.CalculateLeaderboard(
+            territories.Select(territory => new ControlledTerritory(
+                territory.Id,
+                territory.OwnerFactionId,
+                territory.AreaSquareKm,
+                territory.Stats)).ToArray(),
+            factions.Select(faction => new FactionStanding(
+                faction.Id,
+                faction.Name,
+                EliminationCount: 0)).ToArray(),
+            armies.Select(army => new ControlledArmy(army.FactionId, army.Strength)).ToArray(),
+            routes.Select(route => new ConnectedRoute(route.SourceTerritoryId, route.DestinationTerritoryId, route.IsAllowed)).ToArray(),
+            resources.ToDictionary(resource => resource.FactionId, resource => resource.Revenue, StringComparer.Ordinal));
+
+        return new MatchSnapshot(
+            GameId: setup.GameId,
+            MapArea: map.Name,
+            SnapshotGeneratedAtUtc: DateTimeOffset.UtcNow,
+            Game: new MatchGameStateDto(
+                setup.Status,
+                setup.IsStarted,
+                setup.HumanPlayers,
+                setup.MaxHumanPlayers,
+                setup.NpcFactions,
+                IsEnded: setup.IsEnded,
+                WinningControlPercentage: setup.WinningControlPercentage,
+                WinnerFactionId: setup.WinnerFactionId,
+                WinnerFactionName: setup.WinnerFactionName),
+            Map: map,
+            Factions: factions,
+            Territories: territories,
+            Armies: armies,
+            Routes: routes,
+            Leaderboard: leaderboard,
+            Resources: resources);
+    }
+
+    private static IReadOnlyList<MatchFactionResourceDto> CreateInitialResources(
+        IReadOnlyList<MatchFactionDto> factions,
+        IReadOnlyList<MatchTerritoryDto> territories) =>
+        factions
+            .Select(faction => new MatchFactionResourceDto(
+                faction.Id,
+                territories
+                    .Where(territory => territory.OwnerFactionId == faction.Id)
+                    .Sum(territory => territory.Stats.Economy)))
+            .ToList();
+
+    private static IReadOnlyList<MatchFactionDto> CreateFactions(
+        int humanPlayers,
+        int npcFactions,
+        IReadOnlyDictionary<string, string>? playerNamesByFactionId = null)
+    {
+        if (humanPlayers < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(humanPlayers), "A match needs at least one human player.");
+        }
+
+        if (npcFactions < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(npcFactions), "NPC faction count cannot be negative.");
+        }
+
+        var factions = Enumerable.Range(1, humanPlayers)
+            .Select(index =>
+            {
+                var factionId = $"human-{index}";
+                var name = playerNamesByFactionId?.GetValueOrDefault(factionId) ?? $"Player {index}";
+                return new MatchFactionDto(
+                    factionId,
+                    name,
+                    FactionKind.Human,
+                    HumanFactionColors[(index - 1) % HumanFactionColors.Length]);
+            })
+            .Concat(Enumerable.Range(1, npcFactions)
+                .Select(index =>
+                {
+                    var nature = (NpcNature)((index - 1) % 3); // Active=0, Conservative=1, Passive=2
+                    return new MatchFactionDto(
+                        $"npc-{index}",
+                        $"NPC {index} ({nature})",
+                        FactionKind.Npc,
+                        NpcFactionColors[(index - 1) % NpcFactionColors.Length],
+                        nature);
+                }))
+            .ToList();
+
+        return factions;
+    }
 
     private static IReadOnlyDictionary<string, int> CreateStartIndexes(int territoryCount, IReadOnlyList<string> factionIds, Random random)
     {
-        if (territoryCount < 8)
+        if (territoryCount < factionIds.Count)
         {
-            throw new InvalidOperationException("Cardiff postcode territory data must contain at least 8 territories.");
-        }
-
-        if (factionIds.Count != 8)
-        {
-            throw new InvalidOperationException("Cardiff match setup expects exactly 8 factions.");
+            throw new InvalidOperationException($"Cardiff postcode territory data must contain at least {factionIds.Count} territories.");
         }
 
         var availableIndexes = Enumerable.Range(0, territoryCount)
@@ -142,12 +286,6 @@ public sealed class CardiffMatchService
             {
                 var source = territories[index];
                 var destination = territories[destinationIndex];
-                var key = RouteKey(source.Id, destination.Id);
-                if (routes.ContainsKey(key))
-                {
-                    continue;
-                }
-
                 var distanceSeconds = Math.Max(45, (int)Math.Round(CentroidDistance(source, destination) * 120_000));
                 var transport = (index + destinationIndex) % 10 == 0
                     ? RouteTransport.Rail
@@ -158,9 +296,15 @@ public sealed class CardiffMatchService
                     Terrain: (index + destinationIndex) % 8 == 0 ? RouteTerrain.Hills : RouteTerrain.Basic,
                     Barrier: (index + destinationIndex) % 15 == 0 ? RouteBarrier.BridgeOrTunnel : RouteBarrier.None));
 
-                routes[key] = new MatchRouteDto(
+                routes[$"{source.Id}|{destination.Id}"] = new MatchRouteDto(
                     SourceTerritoryId: source.Id,
                     DestinationTerritoryId: destination.Id,
+                    Transport: transport,
+                    EtaSeconds: result.EtaSeconds,
+                    IsAllowed: result.IsAllowed);
+                routes[$"{destination.Id}|{source.Id}"] = new MatchRouteDto(
+                    SourceTerritoryId: destination.Id,
+                    DestinationTerritoryId: source.Id,
                     Transport: transport,
                     EtaSeconds: result.EtaSeconds,
                     IsAllowed: result.IsAllowed);
@@ -210,10 +354,20 @@ public sealed class CardiffMatchService
             Latitude: coordinates.Take(count).Average(coordinate => coordinate.Latitude));
     }
 
-    private static string RouteKey(string sourceId, string destinationId) =>
-        string.Compare(sourceId, destinationId, StringComparison.Ordinal) <= 0
-            ? $"{sourceId}|{destinationId}"
-            : $"{destinationId}|{sourceId}";
+    private static int DeterministicSeed(string value)
+    {
+        unchecked
+        {
+            var hash = (int)2166136261;
+            foreach (var character in value)
+            {
+                hash ^= character;
+                hash *= 16777619;
+            }
+
+            return hash;
+        }
+    }
 
     private static string NormalizePostcode(string postcode) =>
         postcode

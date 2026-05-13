@@ -8,16 +8,40 @@ public enum FactionKind
     Npc
 }
 
+public enum NpcNature
+{
+    Active,
+    Conservative,
+    Passive
+}
+
 public sealed record MatchSnapshot(
     string GameId,
     string MapArea,
     DateTimeOffset SnapshotGeneratedAtUtc,
+    MatchGameStateDto Game,
     MatchMapDto Map,
     IReadOnlyList<MatchFactionDto> Factions,
     IReadOnlyList<MatchTerritoryDto> Territories,
     IReadOnlyList<MatchArmyDto> Armies,
     IReadOnlyList<MatchRouteDto> Routes,
-    IReadOnlyList<LeaderboardRow> Leaderboard);
+    IReadOnlyList<LeaderboardRow> Leaderboard,
+    IReadOnlyList<MatchFactionResourceDto>? Resources = null);
+
+public sealed record MatchGameStateDto(
+    string Status,
+    bool IsStarted,
+    int HumanPlayers,
+    int MaxHumanPlayers,
+    int NpcFactions,
+    bool IsEnded = false,
+    double WinningControlPercentage = 100,
+    string? WinnerFactionId = null,
+    string? WinnerFactionName = null);
+
+public sealed record MatchFactionResourceDto(
+    string FactionId,
+    int Revenue);
 
 public sealed record MatchMapDto(
     string Id,
@@ -34,7 +58,8 @@ public sealed record MatchFactionDto(
     string Id,
     string Name,
     FactionKind Kind,
-    string Color);
+    string Color,
+    NpcNature? Nature = null);
 
 public sealed record MatchTerritoryDto(
     string Id,
@@ -60,6 +85,17 @@ public sealed record MatchRouteDto(
     int EtaSeconds,
     bool IsAllowed);
 
+public sealed record SelectStartPositionRequest(
+    string TerritoryId);
+
+public sealed record JoinGameResponse(
+    string GameId,
+    string FactionId,
+    string DisplayName,
+    string Status,
+    int HumanPlayers,
+    int MaxHumanPlayers);
+
 public sealed record SendArmyCommand(
     string PlayerFactionId,
     string SourceTerritoryId,
@@ -71,4 +107,5 @@ public sealed record SendArmyResult(
     bool Accepted,
     string? Error,
     int? EtaSeconds,
-    MatchSnapshot? Snapshot);
+    MatchSnapshot? Snapshot,
+    string? EliminatedFactionName = null);

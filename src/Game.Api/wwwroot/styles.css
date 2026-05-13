@@ -122,6 +122,42 @@ main {
   margin-bottom: 18px;
 }
 
+.filter-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-tab {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.filter-tab:hover {
+  background: rgba(255,255,255,0.07);
+  color: var(--text);
+}
+
+.filter-tab.is-active {
+  background: var(--green);
+  border-color: var(--green);
+  color: #000;
+  font-weight: 600;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+
 h1,
 h2,
 h3 {
@@ -347,6 +383,7 @@ h3 {
 .floating-widget {
   position: absolute;
   z-index: 3;
+  pointer-events: auto;
   width: min(300px, calc(100vw - 28px));
   max-height: calc(100vh - 28px);
   overflow: auto;
@@ -383,6 +420,11 @@ h3 {
   background: transparent;
   color: inherit;
   text-align: left;
+  cursor: grab;
+}
+
+.widget-toggle:active {
+  cursor: grabbing;
 }
 
 .widget-toggle strong {
@@ -412,60 +454,166 @@ h3 {
   display: none;
 }
 
-.selected-territory-widget {
-  left: 14px;
-  top: 62px;
-  width: min(150px, calc(100vw - 28px));
-  gap: 8px;
-  padding: 10px;
+/* ─── Command bar (replaces selected-territory floating widget) ─── */
+
+.command-bar {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: min(640px, calc(100vw - 28px));
+  max-width: calc(100vw - 28px);
+  max-height: calc(50vh - 20px);
+  background: var(--map-panel);
+  border: 1px solid rgba(190, 213, 213, 0.2);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.52), 0 0 0 1px rgba(45, 212, 163, 0.06);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+  pointer-events: auto;
 }
 
-.selected-territory-widget .widget-toggle {
-  gap: 8px;
+.command-bar.is-hidden-by-menu {
+  display: none;
 }
 
-.selected-territory-widget .widget-toggle strong {
-  font-size: 14px;
-  line-height: 1.15;
+.command-bar-territory {
+  display: grid;
+  gap: 2px;
+  padding: 12px 16px;
+  min-width: 148px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--line);
 }
 
-.selected-territory-widget .eyebrow {
-  font-size: 10px;
-  margin-bottom: 2px;
+.command-bar-army-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
 }
 
-.selected-territory-widget .toggle-icon {
+.command-bar-army-icon {
   width: 22px;
   height: 22px;
-  flex-basis: 22px;
+  flex-shrink: 0;
+  opacity: 0.7;
 }
 
-.selected-territory-widget .widget-body {
+.command-bar-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--green);
+  opacity: 0.8;
+}
+
+.command-bar-name {
+  font-size: 14px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+.command-bar-sub {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+.command-bar-divider {
+  display: none;
+}
+
+.command-bar-actions {
+  flex: 1;
+  padding: 10px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+  overflow-y: auto;
+  max-height: calc(50vh - 20px);
 }
 
-.selected-territory-widget .panel-section {
-  gap: 5px;
-}
-
-.selected-territory-widget .panel-section h3 {
-  font-size: 13px;
-}
-
-.selected-territory-widget .muted {
+.command-bar-actions > p.muted {
   font-size: 12px;
-  line-height: 1.25;
+  margin: 0;
+  padding: 2px 0;
+}
+
+.command-bar-actions h3 {
+  width: 100%;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--green);
   margin: 0;
 }
 
-.selected-territory-widget .move-summary {
-  padding: 6px;
+.command-bar-actions .move-summary {
+  flex: 1;
+  min-width: 160px;
+  padding: 6px 10px;
+  font-size: 12px;
+  gap: 2px;
 }
 
-.selected-territory-widget .target-pill {
-  font-size: 11px;
-  min-height: 30px;
-  padding: 4px 6px;
+.command-bar-actions .move-summary strong {
+  font-size: 13px;
+}
+
+.command-bar-actions .range-field {
+  flex: 1;
+  min-width: 140px;
+  gap: 8px;
+}
+
+.command-bar-actions input[type="range"] {
+  flex: 1;
+  min-width: 80px;
+}
+
+.command-bar-actions .actions.compact {
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.command-bar-actions .target-list {
+  flex-wrap: wrap;
+}
+
+.command-bar-actions .target-group-label {
+  width: 100%;
+  margin: 2px 0 0;
+  font-size: 10px;
+}
+
+.command-bar-actions .form-error {
+  width: 100%;
+  margin: 0;
+}
+
+.command-bar-actions .actions.compact button {
+  min-height: 32px;
+  padding: 5px 10px;
+  font-size: 13px;
 }
 
 .leaderboard-widget {
@@ -473,11 +621,18 @@ h3 {
   top: 14px;
 }
 
+.player-stats-widget {
+  right: 164px;
+  top: 360px;
+}
+
 .game-menu-widget {
-  right: 14px;
+  right: 89px;
   top: 14px;
   width: min(190px, calc(100vw - 28px));
   padding: 10px;
+  overflow: visible;
+  max-height: none;
 }
 
 .game-menu-widget .widget-body {
@@ -500,6 +655,11 @@ h3 {
   padding: 9px;
   border-color: var(--line);
   background: rgba(12, 18, 25, 0.88);
+  cursor: grab;
+}
+
+.burger-toggle:active {
+  cursor: grabbing;
 }
 
 .burger-toggle span {
@@ -512,6 +672,20 @@ h3 {
 .menu-actions {
   display: grid;
   margin-top: 0;
+}
+
+.menu-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+
+.menu-action-btn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  opacity: 0.8;
 }
 
 .panel-section {
@@ -607,6 +781,26 @@ input[type="range"] {
   padding: 6px 8px;
 }
 
+.target-pill-expand {
+  border-color: rgba(45, 212, 163, 0.58);
+}
+
+.target-pill-reinforce {
+  border-color: rgba(103, 166, 255, 0.7);
+  background: rgba(103, 166, 255, 0.06);
+}
+
+.target-group-label {
+  font-size: 0.76rem;
+  margin: 4px 0 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.target-group-label-spaced {
+  margin-top: 10px;
+}
+
 .army-strength {
   font-size: 28px;
   font-weight: 800;
@@ -624,6 +818,36 @@ input[type="range"] {
 .match-map {
   position: absolute;
   inset: 0;
+}
+
+.map-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(8, 14, 22, 0.92);
+  color: #ccc;
+  font-size: 0.9rem;
+  pointer-events: none;
+  backdrop-filter: blur(2px);
+}
+
+.map-spinner {
+  display: block;
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.15);
+  border-top-color: rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  animation: map-spin 0.75s linear infinite;
+}
+
+@keyframes map-spin {
+  to { transform: rotate(360deg); }
 }
 
 .map-fallback {
@@ -657,6 +881,92 @@ input[type="range"] {
 .map-overlay.top-left {
   left: 14px;
   top: 14px;
+}
+
+.map-overlay.top-center {
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.map-overlay.game-end-overlay {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  text-align: center;
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-width: 280px;
+  background: rgba(12, 18, 25, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  position: absolute;
+}
+
+.game-end-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--muted, #888);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.game-end-close:hover {
+  color: var(--text, #eee);
+  background: rgba(255,255,255,0.08);
+}
+
+.game-end-title {
+  font-size: 2rem;
+  display: block;
+}
+
+.game-end-subtitle {
+  color: var(--muted);
+  margin: 0;
+}
+
+.elimination-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  z-index: 999;
+  background: rgba(12, 18, 25, 0.94);
+  border: 1px solid var(--green);
+  border-radius: 10px;
+  padding: 14px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+}
+.elimination-toast.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.elimination-toast strong {
+  color: var(--green);
+  font-size: 1.1rem;
+}
+.elimination-toast em {
+  font-style: normal;
+  color: var(--green);
 }
 
 .map-overlay.bottom-right {
@@ -841,13 +1151,13 @@ input[type="range"] {
 }
 
 .territory-info-icon {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 2.2;
+  stroke-width: 2;
 }
 
 .territory-action-menu-center {
@@ -988,10 +1298,25 @@ input[type="range"] {
 
 .leader-entry {
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) 44px 48px;
-  gap: 8px;
+  grid-template-columns: 12px minmax(0, 1fr) 44px;
+  gap: 4px 8px;
   align-items: center;
   font-size: 14px;
+}
+
+.leader-entry.is-eliminated {
+  opacity: 0.45;
+}
+
+.leader-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leader-control {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .leader-swatch {
@@ -999,11 +1324,25 @@ input[type="range"] {
   height: 28px;
   border-radius: 999px;
   background: var(--swatch);
+  grid-row: span 2;
 }
 
-.leader-entry small {
-  color: var(--muted);
-  text-align: right;
+.leader-stats {
+  grid-column: 2 / -1;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--muted, #888);
+  font-size: 12px;
+  margin-top: 1px;
+}
+
+.leader-stats small {
+  color: var(--muted, #888);
+}
+
+.leader-growth {
+  opacity: 0.7;
 }
 
 .leader-entry .bar {
@@ -1018,6 +1357,37 @@ input[type="range"] {
 
 .status-grid strong {
   display: block;
+  margin-top: 4px;
+}
+
+.player-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.player-stats-grid .muted {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.player-stat {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.055);
+  padding: 10px;
+}
+
+.player-stat span {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.player-stat strong {
+  display: block;
+  font-size: 24px;
   margin-top: 4px;
 }
 
@@ -1053,14 +1423,37 @@ input[type="range"] {
     right: 12px;
   }
 
-  .selected-territory-widget {
-    top: 58px;
-    width: min(220px, calc(100vw - 24px));
+  .command-bar {
+    bottom: 12px;
+    min-width: calc(100vw - 24px);
+    flex-direction: column;
+    align-items: stretch;
+    border-radius: 10px;
+  }
+
+  .command-bar-territory {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    padding: 10px 14px 8px;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 12px;
+  }
+
+  .command-bar-eyebrow {
+    grid-column: 1 / -1;
+  }
+
+  .command-bar-actions {
+    max-height: 36vh;
   }
 
   .leaderboard-widget {
     top: auto;
     bottom: 12px;
+  }
+
+  .player-stats-widget {
+    top: 166px;
   }
 
   .game-menu-widget {

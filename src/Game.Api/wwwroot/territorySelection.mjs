@@ -1,4 +1,4 @@
-export function applyTerritorySelection(state, id, validTargetTerritoryIds = []) {
+export function applyTerritorySelection(state, id, validTargetTerritoryIds = [], reinforceTargetIds = []) {
   const territory = state.matchSnapshot?.territories?.find(item => item.id === id);
   if (!territory) {
     return false;
@@ -12,6 +12,16 @@ export function applyTerritorySelection(state, id, validTargetTerritoryIds = [])
     state.selectedMovementStrength = Math.min(
       Math.max(state.selectedMovementStrength, 1),
       armyStrengthForTerritory(state, state.selectedSourceTerritoryId, "human-1"));
+    return true;
+  }
+
+  if (state.selectedSourceTerritoryId && reinforceTargetIds.includes(id)) {
+    state.selectedTargetTerritoryId = id;
+    // Max for reinforcement is available - 1 (must leave a garrison)
+    const available = armyStrengthForTerritory(state, state.selectedSourceTerritoryId, "human-1");
+    state.selectedMovementStrength = Math.min(
+      Math.max(state.selectedMovementStrength, 1),
+      Math.max(1, available - 1));
     return true;
   }
 

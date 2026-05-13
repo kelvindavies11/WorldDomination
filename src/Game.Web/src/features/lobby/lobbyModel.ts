@@ -10,6 +10,7 @@ export function createLobbyModel(snapshot: MatchSnapshot) {
     npcFactions,
     summary: {
       mapArea: snapshot.mapArea,
+      status: snapshot.game.status,
       territories: snapshot.territories.length,
       armies: snapshot.armies.length,
       routes: snapshot.routes.length,

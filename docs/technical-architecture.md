@@ -83,7 +83,44 @@ Owns ASP.NET Core delivery:
 - dependency injection composition
 - API documentation
 
+Current Cardiff snapshot detail: faction comparison fields such as territory count, total revenue, current army strength, and army growth are part of the authoritative snapshot payload so browser clients and future multiplayer clients compare players using API-supplied values.
+
+Every match snapshot includes a `game` field with the current lifecycle state:
+
+- `status` — `"Open"` while players can join and select starts; `"Started"` once the host has started the match; `"Ended"` when the match is over.
+- `isStarted` — boolean, true while the match is active.
+- `isEnded` — boolean, true once the match has concluded.
+- `winnerFactionId` / `winnerFactionName` — set when a faction wins; both are `null` for a stalemate end.
+- `humanPlayers` — number of human players who have joined the game.
+- `maxHumanPlayers` — maximum human player slots for the game.
+- `npcFactions` — number of NPC factions in the game.
+- `winningControlPercentage` — map-control threshold (0–100) required to win. Defaults to 100.
+
+Human faction names are also API-owned. The browser provides a player display name when creating or joining a game via the `X-Player-Name` header, and that name becomes the authoritative human faction name returned in subsequent match snapshots and leaderboard data.
+
+The default Cardiff match (`cardiff-match`) always reports `isStarted: true` and `status: "Started"`.
+
 Map data and game data must always be returned from the API layer. The frontend must not own or store canonical map geometry, territory data, match state, rules data, or game progress outside API responses and realtime server events.
+
+## Custom Game Lifecycle API
+
+Custom games go through a pregame lobby phase before the match starts. The following endpoints drive the lifecycle:
+
+| Method | Path | Header | Purpose |
+|---|---|---|---|
+| `POST` | `/api/games` | `X-Player-Id`, `X-Player-Name` | Create a new custom game. Creator becomes `human-1`. NPC starts are assigned immediately. |
+| `GET` | `/api/games` | — | List all available (open, started, or recently ended) custom games. Response includes `winningControlPercentage` per game. |
+| `DELETE` | `/api/games/{gameId}` | — | Mark a custom game as ended. Ended games remain visible in the list with `Ended` status and are no longer joinable. |
+| `POST` | `/api/games/{gameId}/join` | `X-Player-Id`, `X-Player-Name` | Join an open game. Returns the caller's assigned faction ID and authoritative display name. Returns current assignment if already joined. Fails if the game is full, ended, or has started. Calling join with a name after the match starts updates the player's display name. |
+| `POST` | `/api/games/{gameId}/start-position` | `X-Player-Id` | Select a neutral starting territory. Body: `{ "territoryId": "..." }`. Returns the updated match snapshot. Fails if the game has started, territory is claimed, or player has already selected. |
+| `POST` | `/api/games/{gameId}/start` | `X-Player-Id` | Start the game. Fails if any joined player has not yet selected a start. Transitions the game to `Started` and returns the updated match snapshot. |
+| `POST` | `/api/matches/{gameId}/movements` | — | Send an army. Body: `SendArmyCommand`. Returns `SendArmyResult` which includes `eliminatedFactionName` when a faction is wiped out by the move. |
+
+The `X-Player-Id` header carries an anonymous persistent identifier generated and stored by the browser client (e.g. in `localStorage`). The server never generates or assigns player IDs; it only receives and stores them.
+
+The optional `X-Player-Name` header carries the player's chosen display name. The API is responsible for persisting that name against the joined human faction and returning it back in match snapshots.
+
+All lobby state is authoritative on the server. Clients reflect lobby state from the match snapshot `game` field and the `/api/games` list.
 
 ### Game.Tests
 
@@ -191,20 +228,40 @@ Keep MySQL-specific SQL behind infrastructure services or repositories.
 
 Use ASP.NET Core SignalR as the primary realtime game channel.
 
+HTTP snapshot fetches are used for initial load, reconnect, and explicit recovery. Ongoing in-match and lobby updates should be pushed from the API layer over SignalR rather than inferred locally in the browser.
+
 SignalR should broadcast:
 
-- match state changes
+- match state changes (`SnapshotUpdated` — full snapshot payload)
 - territory ownership changes
 - army movement starts
 - army movement ETA updates
 - battle starts
 - battle updates
 - battle results
-- eliminations
+- eliminations (`FactionEliminated` — `{ eliminatedFactionName, eliminatorFactionId }`)
 - leaderboard updates
-- match victory
+- match victory (`GameEnded` — `{ gameId, winnerFactionId, winnerFactionName }`)
+- stalemate (`GameEnded` with `winnerFactionName = "Stalemate"` and null IDs)
+- lobby joins
+- player name changes relevant to the current game
+- start-position selections
+- game started
+- game ended
+- games list refresh (`GamesUpdated` — full available games list, broadcast to all clients when a game changes state)
 
 The frontend should treat SignalR updates as server-authoritative.
+
+Client-side timers or polling loops may be used only as a temporary recovery fallback while realtime delivery is incomplete. They must not become the primary synchronization mechanism for multiplayer state.
+
+### Implemented Broadcast Behaviour
+
+The following broadcast rules are currently implemented:
+
+- **Player move** — the `/api/matches/{gameId}/movements` endpoint applies the move and immediately broadcasts `SnapshotUpdated` to the match group before returning the HTTP response. Every connected client sees the change as soon as it is accepted.
+- **NPC moves** — `NpcTickBackgroundService` broadcasts `SnapshotUpdated` after each individual NPC move, not once at the end of the tick. This ensures clients see territory captures one at a time as they occur rather than all changes appearing simultaneously at the tick boundary.
+- **Reinforcements** — a final `SnapshotUpdated` is broadcast after the reinforcement pass at the end of each tick.
+- **Map rendering** — the frontend `SnapshotUpdated` handler updates the MapLibre GeoJSON territory source (`setData`) immediately when a new snapshot arrives, ensuring territory colours repaint without a page reload. `updateMatchDataInPlace` also refreshes the map source, so all call paths (HTTP responses, SignalR events, post-move handlers) stay consistent.
 
 ## Performance And Scaling Considerations
 
@@ -260,6 +317,8 @@ Use full state snapshots only for:
 - initial match join
 - reconnect recovery
 - explicit resync after client desync
+
+For the MVP, full snapshots are currently sent for every state change (player move, each individual NPC move, reinforcement tick). This is acceptable while match sizes are small. Switch to compact deltas if snapshot payload size or broadcast frequency becomes a bottleneck.
 
 ### Interest Management
 
@@ -610,6 +669,25 @@ Tools:
 - MySQL `ST_*` spatial functions
 - EF Core with MySQL provider
 - NetTopologySuite for C# geometry calculations where useful
+
+### Territory Boundary Data
+
+Concern:
+
+Gameplay territories need stable postcode-sector boundaries that do not depend on live OSM polygon quality or runtime extraction.
+
+Solution:
+
+- Treat `src/Game.Application/Data/cardiff-postal-sectors.geojson` as a generated artifact, not hand-authored map geometry.
+- Generate postcode-sector boundaries from the University of Edinburgh DataShare `GB_Postcodes.zip` dataset, using the `PostalSector` shapefile as the source of truth for Cardiff and Newport territory polygons.
+- Use OSM-derived ingestion only for territory feature summaries and scoring inputs, not for the authoritative postcode boundary shapes.
+- Keep Newport territory metrics seeded from DataShare geometry area and postcode counts until a full OSM feature-summary reingest is available for the new sectors.
+
+Tools:
+
+- Edinburgh DataShare `GB_Postcodes.zip`
+- bundled GeoJSON in `src/Game.Application/Data/cardiff-postal-sectors.geojson`
+- bundled feature summaries in `src/Game.Application/Data/cardiff-territory-features.json`
 
 ### OSM Data Ingestion
 

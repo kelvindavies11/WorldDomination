@@ -5,6 +5,21 @@ import { createLobbyModel } from "./lobbyModel";
 const snapshot: MatchSnapshot = {
   gameId: "cardiff-match",
   mapArea: "Cardiff",
+  snapshotGeneratedAtUtc: "2026-01-01T00:00:00Z",
+  map: {
+    id: "cardiff",
+    name: "Cardiff",
+    center: { longitude: -3.18, latitude: 51.48 },
+    cameraBounds: [],
+    boundaryCoordinates: []
+  },
+  game: {
+    status: "Open",
+    isStarted: false,
+    humanPlayers: 2,
+    maxHumanPlayers: 4,
+    npcFactions: 1
+  },
   factions: [
     { id: "human-1", name: "Player 1", kind: "Human", color: "#1f8a70" },
     { id: "human-2", name: "Player 2", kind: "Human", color: "#2f6fbd" },
@@ -17,7 +32,10 @@ const snapshot: MatchSnapshot = {
       name: "Cardiff Sector 1",
       areaSquareKm: 1,
       ownerFactionId: "human-1",
-      stats: { economy: 10, defense: 20, mobility: 30, strategicValue: 40 }
+      stats: { economy: 10, defense: 20, mobility: 30, strategicValue: 40 },
+      postcode: "",
+      features: {},
+      boundaryCoordinates: []
     },
     {
       id: "territory-001",
@@ -25,7 +43,10 @@ const snapshot: MatchSnapshot = {
       name: "Cardiff Sector 2",
       areaSquareKm: 1.2,
       ownerFactionId: null,
-      stats: { economy: 11, defense: 21, mobility: 31, strategicValue: 41 }
+      stats: { economy: 11, defense: 21, mobility: 31, strategicValue: 41 },
+      postcode: "",
+      features: {},
+      boundaryCoordinates: []
     }
   ],
   armies: [
@@ -50,6 +71,7 @@ describe("createLobbyModel", () => {
 
     expect(model.summary).toEqual({
       mapArea: "Cardiff",
+      status: "Open",
       territories: 2,
       armies: 1,
       routes: 1,

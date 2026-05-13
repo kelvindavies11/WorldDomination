@@ -17,6 +17,11 @@ export type CreateGameRequest = {
   territoryCount: number;
 };
 
+export type AvailableMap = {
+  id: string;
+  name: string;
+};
+
 export async function fetchAvailableGames(signal?: AbortSignal): Promise<AvailableGame[]> {
   const response = await fetch("/api/games", { signal });
 
@@ -25,6 +30,16 @@ export async function fetchAvailableGames(signal?: AbortSignal): Promise<Availab
   }
 
   return response.json() as Promise<AvailableGame[]>;
+}
+
+export async function fetchAvailableMaps(signal?: AbortSignal): Promise<AvailableMap[]> {
+  const response = await fetch("/api/maps", { signal });
+
+  if (!response.ok) {
+    throw new Error(`Available maps request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<AvailableMap[]>;
 }
 
 export async function createGame(request: CreateGameRequest): Promise<AvailableGame> {

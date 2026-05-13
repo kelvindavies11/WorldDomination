@@ -1,7 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Game.Application\Game.Application.csproj" />
+    <ProjectReference Include="..\Game.Infrastructure\Game.Infrastructure.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -4,8 +4,8 @@ import test from "node:test";
 
 const styles = readFileSync("src/Game.Api/wwwroot/styles.css", "utf8");
 
-test("selected territory widget uses compact sizing", () => {
-  assert.match(styles, /\.selected-territory-widget\s*{\s*left: 14px;\s*top: 62px;\s*width: min\(150px, calc\(100vw - 28px\)\);/s);
-  assert.match(styles, /\.selected-territory-widget \.widget-body\s*{\s*gap: 8px;/s);
-  assert.doesNotMatch(styles, /\.selected-territory-widget \.stat-list/);
+test("move order widget occupies the compact left-side command slot", () => {
+  assert.match(styles, /\.command-bar\s*{[^}]*bottom: 20px;[^}]*left: 50%;[^}]*min-width: min\(640px, calc\(100vw - 28px\)\);/s);
+  assert.match(styles, /\.command-bar-territory\s*{[^}]*display: grid;/s);
+  assert.doesNotMatch(styles, /\.selected-territory-widget\s*{/);
 });

@@ -22,7 +22,7 @@ test("segmented territory menu keeps icons visible inside fixed quadrants", () =
   assert.match(styles, /\.territory-info-content\s*{[^}]*flex-direction: column-reverse;/s);
   assert.match(styles, /\.territory-info-slice-army\s*{[^}]*--info-angle: 324deg;/s);
   assert.match(styles, /\.territory-info-content\s*{[^}]*transform: translate\(-50%, -50%\) rotate\(var\(--info-angle\)\) translateY\(-73px\) rotate\(calc\(var\(--info-angle\) \* -1\)\);/s);
-  assert.match(styles, /\.territory-info-icon\s*{[^}]*width: 12px;[^}]*height: 12px;/s);
+  assert.match(styles, /\.territory-info-icon\s*{[^}]*width: 16px;[^}]*height: 16px;/s);
   assert.doesNotMatch(styles, /\.territory-info-slice-[a-z]+\s*{[^}]*clip-path:/s);
   assert.doesNotMatch(styles, /\.territory-action-slice-expand\s*{[^}]*transform: rotate/s);
 });

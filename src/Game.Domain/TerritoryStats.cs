@@ -4,4 +4,6 @@ public sealed record TerritoryStats(
     int Economy,
     int Defense,
     int Mobility,
-    int StrategicValue);
+    int StrategicValue,
+    int RevenuePerTick,
+    int ArmyGrowthPerTick);

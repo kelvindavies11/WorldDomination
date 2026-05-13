@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { createGame, fetchAvailableGames, type AvailableGame, type CreateGameRequest } from "./api/games";
+import { createGame, fetchAvailableGames, fetchAvailableMaps, type AvailableGame, type AvailableMap, type CreateGameRequest } from "./api/games";
 import "./styles.css";
 
 const routes = {
@@ -69,9 +69,7 @@ function App() {
       <main>
         {path === routes.create
           ? <CreateGamePage go={go} onCreate={onCreate} />
-          : path.startsWith("/games/") && path !== "/games/cardiff/lobby"
-            ? <JoinedPage go={go} />
-            : <GamesPage error={error} games={games} go={go} isLoading={isLoading} />}
+          : <GamesPage error={error} games={games} go={go} isLoading={isLoading} />}
       </main>
     </div>
   );
@@ -89,12 +87,17 @@ function GamesPage({ error, games, go, isLoading }: { error: string | null; game
       </div>
       {isLoading && <div className="status">Loading available games...</div>}
       {error && <div className="status error">{error}</div>}
-      {!isLoading && !error && <GameTable games={games} go={go} />}
+      {!isLoading && !error && <GameTable games={games} />}
     </>
   );
 }
 
-function GameTable({ games, go }: { games: AvailableGame[]; go: (path: string) => void }) {
+function GameTable({ games }: { games: AvailableGame[] }) {
+  function joinGame(game: AvailableGame) {
+    const path = game.id === "cardiff-match" ? "/games/cardiff" : `/games/${encodeURIComponent(game.id)}`;
+    window.location.href = `http://localhost:5269${path}`;
+  }
+
   return (
     <section className="card">
       <div className="table">
@@ -106,7 +109,7 @@ function GameTable({ games, go }: { games: AvailableGame[]; go: (path: string) =
             <span>{game.humanPlayers}/{game.maxHumanPlayers}</span>
             <span>{game.mapArea}</span>
             <span>{game.npcFactions}</span>
-            <button className="secondary" onClick={() => go(game.id === "cardiff-match" ? routes.match : `/games/${game.id}`)}>Join</button>
+            <button className="secondary" onClick={() => joinGame(game)}>Join</button>
           </div>
         ))}
       </div>
@@ -116,6 +119,19 @@ function GameTable({ games, go }: { games: AvailableGame[]; go: (path: string) =
 
 function CreateGamePage({ go, onCreate }: { go: (path: string) => void; onCreate: (request: CreateGameRequest) => Promise<void> }) {
   const [error, setError] = useState<string | null>(null);
+  const [maps, setMaps] = useState<AvailableMap[]>([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchAvailableMaps(controller.signal)
+      .then(setMaps)
+      .catch(reason => {
+        if (!controller.signal.aborted) {
+          setError(reason instanceof Error ? reason.message : "Maps could not be loaded.");
+        }
+      });
+    return () => controller.abort();
+  }, []);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -123,7 +139,7 @@ function CreateGamePage({ go, onCreate }: { go: (path: string) => void; onCreate
     try {
       await onCreate({
         name: String(form.get("name") ?? ""),
-        mapArea: String(form.get("mapArea") ?? "Cardiff"),
+        mapArea: String(form.get("mapArea") ?? "cardiff"),
         maxHumanPlayers: Number(form.get("maxHumanPlayers") ?? 2),
         npcFactions: Number(form.get("npcFactions") ?? 6),
         territoryCount: Number(form.get("territoryCount") ?? 100)
@@ -139,8 +155,14 @@ function CreateGamePage({ go, onCreate }: { go: (path: string) => void; onCreate
       <p className="subtitle">Create an open game that appears in the available games list.</p>
       {error && <div className="status error">{error}</div>}
       <form className="form" onSubmit={submit}>
-        <label>Game name<input name="name" defaultValue="Cardiff Skirmish" required /></label>
-        <label>Map area<input name="mapArea" defaultValue="Cardiff" required /></label>
+        <label>Game name<input name="name" defaultValue="New Skirmish" required /></label>
+        <label>Map area
+          <select name="mapArea" required>
+            {maps.map(map => (
+              <option key={map.id} value={map.id}>{map.name}</option>
+            ))}
+          </select>
+        </label>
         <label>Max human players<input name="maxHumanPlayers" defaultValue="2" required /></label>
         <label>NPC factions<input name="npcFactions" defaultValue="6" required /></label>
         <label>Territories<input name="territoryCount" defaultValue="100" required /></label>
@@ -151,10 +173,6 @@ function CreateGamePage({ go, onCreate }: { go: (path: string) => void; onCreate
       </form>
     </section>
   );
-}
-
-function JoinedPage({ go }: { go: (path: string) => void }) {
-  return <section className="card"><h1>Game joined</h1><p className="subtitle">The available-games flow is in place. The active match screen can be built next.</p><button className="secondary" onClick={() => go(routes.games)}>Back to Games</button></section>;
 }
 
 createRoot(document.getElementById("root")!).render(<App />);

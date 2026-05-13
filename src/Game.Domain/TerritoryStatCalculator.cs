@@ -37,7 +37,19 @@ public static class TerritoryStatCalculator
             0.10 * CappedScore(features.AreaSquareKm, ruleset.TerritoryAreaCapSquareKm) +
             0.05 * CappedScore(features.SpecialFeatures, ruleset.FeatureCountCap));
 
-        return new TerritoryStats(economy, defense, mobility, strategicValue);
+        var revenuePerTick = Round(economy * 10 + strategicValue * 3);
+        var armyGrowthPerTick = Math.Max(1, Round(
+            economy * 0.08 +
+            strategicValue * 0.04 +
+            mobility * 0.03));
+
+        return new TerritoryStats(
+            economy,
+            defense,
+            mobility,
+            strategicValue,
+            revenuePerTick,
+            armyGrowthPerTick);
     }
 
     public static double CappedScore(double value, double cap)
