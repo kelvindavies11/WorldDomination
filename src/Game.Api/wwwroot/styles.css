@@ -688,6 +688,57 @@ h3 {
   opacity: 0.8;
 }
 
+.game-options {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(190, 213, 213, 0.16);
+}
+
+.game-option-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgba(190, 213, 213, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  font-size: 0.82rem;
+}
+
+.game-option-switch {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(190, 213, 213, 0.22);
+}
+
+.game-option-switch::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.game-option-toggle.is-enabled .game-option-switch {
+  background: rgba(45, 212, 163, 0.55);
+}
+
+.game-option-toggle.is-enabled .game-option-switch::after {
+  transform: translateX(16px);
+  background: #ffffff;
+}
+
 .panel-section {
   display: grid;
   gap: 8px;
@@ -1289,6 +1340,12 @@ input[type="range"] {
   font-size: 12px;
   font-weight: 800;
   padding: 6px 9px;
+}
+
+.map-chip.error-chip {
+  background: rgba(139, 31, 31, 0.92);
+  border-color: rgba(255, 180, 180, 0.34);
+  color: #ffe3e3;
 }
 
 .leaderboard {

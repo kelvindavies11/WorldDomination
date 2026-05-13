@@ -50,5 +50,7 @@ Current lobby behavior:
 - custom games stay visible in the lobby after they are ended
 - the API owns lobby state, faction names, territory ownership, and leaderboard values
 - realtime multiplayer synchronization should come from the API layer over SignalR; HTTP snapshot fetches are for initial load and recovery
+- territory attacks, reinforcements, and start claims broadcast Tactical Pulse presentation events so connected players see the same takeover animation metadata
+- in-game options let players enable/disable Tactical Pulse animations and generated sound cues independently
 
 `src/Game.Web` contains the planned Vite/React package boundary for the next frontend iteration. This environment currently has `node.exe` but no `npm`, so the checked-in working UI is dependency-free static browser code served by ASP.NET Core.

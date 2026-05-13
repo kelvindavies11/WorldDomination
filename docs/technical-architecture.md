@@ -262,6 +262,9 @@ The following broadcast rules are currently implemented:
 - **NPC moves** — `NpcTickBackgroundService` broadcasts `SnapshotUpdated` after each individual NPC move, not once at the end of the tick. This ensures clients see territory captures one at a time as they occur rather than all changes appearing simultaneously at the tick boundary.
 - **Reinforcements** — a final `SnapshotUpdated` is broadcast after the reinforcement pass at the end of each tick.
 - **Map rendering** — the frontend `SnapshotUpdated` handler updates the MapLibre GeoJSON territory source (`setData`) immediately when a new snapshot arrives, ensuring territory colours repaint without a page reload. `updateMatchDataInPlace` also refreshes the map source, so all call paths (HTTP responses, SignalR events, post-move handlers) stay consistent.
+- **Tactical Pulse presentation** — accepted player movements and start-position selections also broadcast `TerritoryActionResolved` with source territory, target territory, action type, strength, owner faction, and occurrence time. Browser clients use this presentation-only event to render strength-scaled Tactical Pulse route streaks, target pulses, ownership wipes, and generated sound cues. `SnapshotUpdated` remains authoritative for game state.
+
+Players can disable Tactical Pulse animations and generated sound cues independently from the in-game menu. These settings are local presentation preferences stored in browser `localStorage`; disabling them does not affect server state, snapshots, or other players.
 
 ## Performance And Scaling Considerations
 

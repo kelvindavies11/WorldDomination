@@ -62,6 +62,8 @@ async function apiFetch(page, player, method, path, body) {
 // ---------------------------------------------------------------------------
 
 test("Player B sees Player A's territory claim via SignalR without reload", async ({ browser }) => {
+  test.setTimeout(60_000);
+
   const playerA = makePlayer("A");
   const playerB = makePlayer("B");
 
@@ -221,6 +223,20 @@ test("Player B sees Player A's territory claim via SignalR without reload", asyn
           targetTerritoryId: moveSetup.targetId,
           strength: 1,
         });
+
+        for (const [label, page] of [["A", pageA], ["B", pageB]]) {
+          await page.waitForFunction(
+            ({ targetId }) => window.__lastTacticalPulseEvent__?.targetTerritoryId === targetId,
+            { targetId: moveSetup.targetId },
+            { timeout: 10_000 }
+          );
+
+          const pulse = await page.evaluate(() => window.__lastTacticalPulseEvent__);
+          expect(pulse.actionType, `Player ${label} should see the same Tactical Pulse action`).toBe("attack");
+          expect(pulse.strength, `Player ${label} should see the same Tactical Pulse strength`).toBe(1);
+          expect(pulse.targetTerritoryId, `Player ${label} should see the same Tactical Pulse target`).toBe(moveSetup.targetId);
+          expect(pulse.animationsEnabled, `Player ${label} should have animations enabled by default`).toBe(true);
+        }
 
         // Player B's snapshot should refresh via SignalR push
         await pageB.waitForFunction(

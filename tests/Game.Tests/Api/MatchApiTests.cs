@@ -16,6 +16,35 @@ public sealed class MatchApiTests
     };
 
     [Fact]
+    public void MovementEndpointBroadcastsTacticalPulsePresentationEvent()
+    {
+        var programSource = File.ReadAllText(FindProjectFile("src", "Game.Api", "Program.cs"));
+
+        Assert.Contains("TerritoryActionResolved", programSource);
+        Assert.Contains("\"attack\"", programSource);
+        Assert.Contains("\"reinforce\"", programSource);
+        Assert.Contains("\"claim\"", programSource);
+        Assert.Contains("request.Strength", programSource);
+    }
+
+    private static string FindProjectFile(params string[] pathSegments)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(new[] { directory.FullName }.Concat(pathSegments).ToArray());
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException($"Could not find {Path.Combine(pathSegments)}.");
+    }
+
+    [Fact]
     public async Task CardiffMatchEndpointReturnsMatchSnapshot()
     {
         await using var factory = new GameWebApplicationFactory();

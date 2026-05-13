@@ -52,11 +52,16 @@ app.MapGet("/api/matches/{gameId}", (string gameId, CardiffMatchStateService ser
 
 app.MapPost("/api/matches/{gameId}/movements", async (string gameId, SendArmyCommand request, PlayerTerritoryCommandService service, CardiffMatchStateService stateService, GameLobbyService lobbyService, IHubContext<MatchHub> hub) =>
 {
+    var before = stateService.GetSnapshot(gameId);
+    var targetBefore = before.Territories.SingleOrDefault(territory => territory.Id == request.TargetTerritoryId);
+    var actionType = targetBefore?.OwnerFactionId == request.PlayerFactionId ? "reinforce" : "attack";
     var result = service.SendArmy(request with { GameId = gameId });
     if (!result.Accepted)
         return Results.BadRequest(new { error = result.Error });
 
     var snapshot = ResolveWinner(stateService, lobbyService, gameId);
+    var targetAfter = snapshot.Territories.SingleOrDefault(territory => territory.Id == request.TargetTerritoryId);
+    await BroadcastTerritoryActionResolved(hub, gameId, request.SourceTerritoryId, request.TargetTerritoryId, actionType, request.Strength, targetAfter?.OwnerFactionId);
     await hub.Clients.Group(MatchHub.GroupName(gameId)).SendAsync("SnapshotUpdated", snapshot);
 
     if (!string.IsNullOrWhiteSpace(result.EliminatedFactionName))
@@ -159,6 +164,8 @@ app.MapPost("/api/games/{gameId}/start-position", async (string gameId, SelectSt
         service.SelectStartPosition(gameId, ResolvePlayerId(httpRequest), request.TerritoryId);
         stateService.Invalidate(gameId);
         var updatedSnapshot = stateService.GetSnapshot(gameId);
+        var updatedTerritory = updatedSnapshot.Territories.SingleOrDefault(item => item.Id == request.TerritoryId);
+        await BroadcastTerritoryActionResolved(hub, gameId, null, request.TerritoryId, "claim", 1, updatedTerritory?.OwnerFactionId);
         await hub.Clients.Group(MatchHub.GroupName(gameId)).SendAsync("SnapshotUpdated", updatedSnapshot);
         return Results.Ok(updatedSnapshot);
     }
@@ -246,6 +253,27 @@ static MatchSnapshot ResolveWinner(CardiffMatchStateService stateService, GameLo
 
     lobbyService.EndGame(gameId, winner.FactionId, winner.FactionName);
     return stateService.Update(gameId, current => MatchVictoryEvaluator.ApplyVictory(current, winner));
+}
+
+static Task BroadcastTerritoryActionResolved(
+    IHubContext<MatchHub> hub,
+    string gameId,
+    string? sourceTerritoryId,
+    string targetTerritoryId,
+    string actionType,
+    int strength,
+    string? ownerFactionId)
+{
+    return hub.Clients.Group(MatchHub.GroupName(gameId)).SendAsync("TerritoryActionResolved", new
+    {
+        gameId,
+        sourceTerritoryId,
+        targetTerritoryId,
+        actionType,
+        strength,
+        ownerFactionId,
+        occurredAtUtc = DateTimeOffset.UtcNow
+    });
 }
 
 public partial class Program;

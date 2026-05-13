@@ -1,9 +1,12 @@
+import { gameOptionsMarkup, loadGameOptions, setGameOption } from "./gameOptions.mjs";
 import { captureExpansionFillPaint, ownerColorForTerritory, territoryFillPaint } from "./mapOwnershipStyles.mjs";
 import { createGameFormMarkup, defaultTerritoryCount } from "./createGameMarkup.mjs";
 import { shouldLoadGames } from "./lobbyLoading.mjs";
 import { emptyLobbyMarkup } from "./lobbyMarkup.mjs";
 import { routeBetween as findRouteBetween, validTargetTerritoryIds as findValidTargetTerritoryIds, reinforceTargetIds as findReinforceTargetIds } from "./matchRoutes.mjs";
 import { playerStatsTotals } from "./playerStats.mjs";
+import { createTacticalPulseEventState } from "./tacticalPulse.mjs";
+import { playTacticalPulseSound } from "./tacticalPulseSound.mjs";
 import { applyTerritoryInfoAction, hideTerritoryActionMenu, territoryActionMenuMarkup } from "./territoryActionMenu.mjs";
 import { applyTerritorySelection } from "./territorySelection.mjs";
 import { widgetHiddenClass, widgetToggleLabel } from "./widgetVisibility.mjs";
@@ -37,7 +40,8 @@ const state = {
   playerName: localStorage.getItem("playerName") ?? localStorage.getItem("dynamic-osm-player-name") ?? "",
   gameEndedData: null,
   gameEndOverlayDismissed: false,
-  gamesFilter: "Open"
+  gamesFilter: "Open",
+  gameOptions: loadGameOptions(localStorage)
 };
 
 let activeMap = null;
@@ -300,6 +304,7 @@ function renderMatchPage() {
               <span data-game-end-btn>${gameEndButtonMarkup()}</span>
               <span data-game-start-btn style="display:contents">${gameStartButtonMarkup()}</span>
             </div>
+            ${gameOptionsMarkup(state.gameOptions)}
           </div>
         </aside>
       </div>
@@ -973,9 +978,6 @@ async function sendMovement() {
     return;
   }
 
-  const captureAnimation = captureExpansionRequest(
-    state.selectedSourceTerritoryId,
-    state.selectedTargetTerritoryId);
   state.movementSubmitting = true;
   state.movementError = null;
   updateMatchDataInPlace();
@@ -999,22 +1001,12 @@ async function sendMovement() {
 
     const sourceTerritoryId = state.selectedSourceTerritoryId;
     const targetTerritoryId = state.selectedTargetTerritoryId;
-    const isReinforce = result.snapshot?.territories?.find(t => t.id === targetTerritoryId)?.ownerFactionId === "human-1";
     state.matchSnapshot = result.snapshot;
     preserveExpansionSelection(sourceTerritoryId, targetTerritoryId);
     state.selectedMovementStrength = 1;
     if (activeMap?.getSource("territories")) {
       activeMap.getSource("territories").setData(territoryFeatureCollection());
       activeMap.setFilter("territory-selected-outline", ["==", ["get", "id"], state.selectedTerritoryId ?? ""]);
-    }
-    if (captureAnimation?.sourceCenter && captureAnimation?.targetCenter) {
-      const marchColor = isReinforce
-        ? (factionById("human-1")?.color ?? "#67a6ff")
-        : (captureAnimation.ownerColor ?? "#7cffd4");
-      animateTroopMarch(captureAnimation.sourceCenter, captureAnimation.targetCenter, marchColor, isReinforce);
-    }
-    if (!isReinforce) {
-      animateTerritoryCaptureExpansion(captureAnimation);
     }
   } catch (error) {
     state.movementError = error instanceof Error ? error.message : "Movement command was rejected.";
@@ -1444,7 +1436,7 @@ function emptyFeatureCollection() {
   };
 }
 
-function animateTroopMarch(sourceCenter, targetCenter, color, isReinforce) {
+function animateTroopMarch(sourceCenter, targetCenter, color, isReinforce, durationMs = isReinforce ? 700 : 550) {
   if (!activeMap || !sourceCenter || !targetCenter) {
     return;
   }
@@ -1460,7 +1452,6 @@ function animateTroopMarch(sourceCenter, targetCenter, color, isReinforce) {
   }
 
   const startedAt = performance.now();
-  const durationMs = isReinforce ? 700 : 550;
   const trailCoords = [sourceCenter, targetCenter];
 
   const step = now => {
@@ -1502,23 +1493,23 @@ function easeInOutQuad(t) {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 
-function captureExpansionRequest(sourceTerritoryId, targetTerritoryId) {
+function captureExpansionRequest(sourceTerritoryId, targetTerritoryId, ownerColor = selectedExpansionTargetColor()) {
   const territories = state.matchSnapshot?.territories ?? [];
   const source = territories.find(territory => territory.id === sourceTerritoryId);
   const target = territories.find(territory => territory.id === targetTerritoryId);
-  if (!source || !target) {
+  if (!target || (sourceTerritoryId && !source)) {
     return null;
   }
 
   return {
-    sourceCenter: territoryCenter(source),
+    sourceCenter: source ? territoryCenter(source) : territoryCenter(target),
     targetCenter: territoryCenter(target),
     targetCoordinates: target.boundaryCoordinates.map(coordinatePair),
-    ownerColor: selectedExpansionTargetColor()
+    ownerColor
   };
 }
 
-function animateTerritoryCaptureExpansion(animation) {
+function animateTerritoryCaptureExpansion(animation, durationMs = 820) {
   if (!activeMap || !animation?.sourceCenter || !animation?.targetCenter || !animation?.targetCoordinates?.length) {
     return;
   }
@@ -1533,8 +1524,6 @@ function animateTerritoryCaptureExpansion(animation) {
   }
 
   const startedAt = performance.now();
-  const durationMs = 820;
-
   const step = now => {
     const progress = Math.min((now - startedAt) / durationMs, 1);
     source.setData(captureExpansionFeature(animation.targetCoordinates, animation.ownerColor, easeOutCubic(progress)));
@@ -1549,6 +1538,42 @@ function animateTerritoryCaptureExpansion(animation) {
   };
 
   captureExpansionAnimationFrame = requestAnimationFrame(step);
+}
+
+function handleTerritoryActionResolved(event) {
+  if (!isMatchRoute()) return;
+
+  const eventState = createTacticalPulseEventState(event, state.gameOptions);
+  window.__lastTacticalPulseEvent__ = eventState;
+
+  if (eventState.soundsEnabled) {
+    playTacticalPulseSound(eventState);
+  }
+
+  if (!eventState.animationsEnabled) {
+    return;
+  }
+
+  const ownerColor = factionById(eventState.ownerFactionId)?.color ?? selectedExpansionTargetColor();
+  const animation = captureExpansionRequest(
+    eventState.sourceTerritoryId,
+    eventState.targetTerritoryId,
+    ownerColor);
+
+  if (!animation) {
+    return;
+  }
+
+  const isReinforce = eventState.actionType === "reinforce";
+  const marchColor = isReinforce ? (ownerColor ?? "#67a6ff") : (ownerColor ?? "#7cffd4");
+
+  if (animation.sourceCenter && animation.targetCenter) {
+    animateTroopMarch(animation.sourceCenter, animation.targetCenter, marchColor, isReinforce, eventState.durationMs);
+  }
+
+  if (!isReinforce) {
+    animateTerritoryCaptureExpansion(animation, eventState.durationMs);
+  }
 }
 
 function captureExpansionFeature(targetCoordinates, ownerColor, progress) {
@@ -1857,9 +1882,13 @@ function preGameOverlay() {
   if (!state.matchSnapshot || state.matchSnapshot.game?.isStarted) return `<span data-pregame-overlay hidden></span>`;
   const startTerritory = humanStartTerritory();
   if (startTerritory) {
-    return `<div class="map-overlay top-center" data-pregame-overlay><span class="map-chip">HQ set: ${escapeHtml(startTerritory.name)}</span></div>`;
+    return `<div class="map-overlay top-center" data-pregame-overlay><span class="map-chip">HQ set: ${escapeHtml(startTerritory.name)}</span>${startGameErrorMarkup()}</div>`;
   }
-  return `<div class="map-overlay top-center" data-pregame-overlay><span class="map-chip">Click a territory on the map to set your HQ</span></div>`;
+  return `<div class="map-overlay top-center" data-pregame-overlay><span class="map-chip">Click a territory on the map to set your HQ</span>${startGameErrorMarkup()}</div>`;
+}
+
+function startGameErrorMarkup() {
+  return state.movementError ? `<span class="map-chip error-chip">${escapeHtml(state.movementError)}</span>` : "";
 }
 
 function gameEndOverlay() {
@@ -1942,6 +1971,7 @@ async function startGameFromMatch() {
   const gameId = currentGameId();
   const btn = document.querySelector('[data-action="start-game-from-match"]');
   if (btn) { btn.disabled = true; btn.textContent = "Starting…"; }
+  state.movementError = null;
   try {
     const response = await fetch(`/api/games/${encodeURIComponent(gameId)}/start`, { method: "POST" });
     if (!response.ok) {
@@ -1958,6 +1988,8 @@ async function startGameFromMatch() {
   } catch (error) {
     state.movementError = error instanceof Error ? error.message : "Could not start game.";
     updateMatchDataInPlace();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Start Game"; }
   }
 }
 
@@ -1978,6 +2010,9 @@ async function joinMatchSignalR(gameId) {
       activeMap.getSource("territories").setData(territoryFeatureCollection());
     }
     updateMatchDataInPlace();
+  });
+  activeConnection.on("TerritoryActionResolved", event => {
+    handleTerritoryActionResolved(event);
   });
   activeConnection.on("FactionEliminated", (data) => {
     if (!isMatchRoute()) return;
@@ -2098,6 +2133,14 @@ app.addEventListener("click", event => {
 
   if (target.dataset.action === "toggle-game-widget") {
     toggleGameWidgetVisibility(target.dataset.widgetTarget);
+    return;
+  }
+
+  if (target.dataset.action === "toggle-game-option") {
+    const key = target.dataset.optionKey;
+    const current = state.gameOptions[key] !== false;
+    state.gameOptions = setGameOption(localStorage, key, !current);
+    updateMatchDataInPlace();
     return;
   }
 
