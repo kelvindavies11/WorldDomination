@@ -161,9 +161,9 @@ app.MapPost("/api/games/{gameId}/start-position", async (string gameId, SelectSt
             return Results.BadRequest(new { error = "Starting territory must be neutral." });
         }
 
-        service.SelectStartPosition(gameId, ResolvePlayerId(httpRequest), request.TerritoryId);
-        stateService.Invalidate(gameId);
-        var updatedSnapshot = stateService.GetSnapshot(gameId);
+        var playerId = ResolvePlayerId(httpRequest);
+        var factionId = service.SelectStartPosition(gameId, playerId, request.TerritoryId);
+        var updatedSnapshot = stateService.ClaimStartTerritory(gameId, request.TerritoryId, factionId);
         var updatedTerritory = updatedSnapshot.Territories.SingleOrDefault(item => item.Id == request.TerritoryId);
         await BroadcastTerritoryActionResolved(hub, gameId, null, request.TerritoryId, "claim", 1, updatedTerritory?.OwnerFactionId);
         await hub.Clients.Group(MatchHub.GroupName(gameId)).SendAsync("SnapshotUpdated", updatedSnapshot);

@@ -137,6 +137,33 @@ public sealed class GameApiTests
     }
 
     [Fact]
+    public async Task StartPositionEndpointDoesNotRegenerateExistingSnapshot()
+    {
+        await using var factory = new GameWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        var createResponse = await SendWithPlayerIdAsync(client, HttpMethod.Post, "/api/games", new CreateGameRequest(
+            Name: "Quick North Wales Claim",
+            MapArea: "north-wales",
+            MaxHumanPlayers: 1,
+            NpcFactions: 2,
+            TerritoryCount: 100), "player-one");
+        var created = await createResponse.Content.ReadFromJsonAsync<AvailableGameDto>();
+        Assert.NotNull(created);
+        var before = await client.GetFromJsonAsync<MatchSnapshot>($"/api/matches/{created.Id}", ApiJsonOptions);
+        Assert.NotNull(before);
+        var neutral = before.Territories.First(territory => territory.OwnerFactionId is null);
+
+        var startResponse = await SendWithPlayerIdAsync(client, HttpMethod.Post, $"/api/games/{created.Id}/start-position", new SelectStartPositionRequest(neutral.Id), "player-one");
+        var snapshot = await startResponse.Content.ReadFromJsonAsync<MatchSnapshot>(ApiJsonOptions);
+
+        Assert.Equal(HttpStatusCode.OK, startResponse.StatusCode);
+        Assert.NotNull(snapshot);
+        Assert.Equal(before.SnapshotGeneratedAtUtc, snapshot.SnapshotGeneratedAtUtc);
+        Assert.Equal("human-1", snapshot.Territories.Single(territory => territory.Id == neutral.Id).OwnerFactionId);
+    }
+
+    [Fact]
     public async Task StartGameEndpointRequiresAllJoinedPlayersToPickStarts()
     {
         await using var factory = new GameWebApplicationFactory();

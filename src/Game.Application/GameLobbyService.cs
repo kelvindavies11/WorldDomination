@@ -182,7 +182,7 @@ public sealed class GameLobbyService
         return new JoinGameResponse(game.Id, factionId, newPlayer.DisplayName, StatusText(game), game.Players.Count + 1, game.MaxHumanPlayers);
     }
 
-    public void SelectStartPosition(string gameId, string playerId, string territoryId)
+    public string SelectStartPosition(string gameId, string playerId, string territoryId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(playerId);
         ArgumentException.ThrowIfNullOrWhiteSpace(territoryId);
@@ -211,6 +211,7 @@ public sealed class GameLobbyService
 
         player.SelectedTerritoryId = territoryId.Trim();
         repo.UpdatePlayer(game.Id, player);
+        return player.FactionId;
     }
 
     public AvailableGameDto StartGame(string gameId, string playerId)

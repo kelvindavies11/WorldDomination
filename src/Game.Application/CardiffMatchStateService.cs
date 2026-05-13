@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Game.Domain;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Game.Application;
@@ -125,6 +126,54 @@ public sealed class CardiffMatchStateService
     public MatchSnapshot Update(Func<MatchSnapshot, MatchSnapshot> update) =>
         Update("cardiff-match", update);
 
+    public MatchSnapshot ClaimStartTerritory(string gameId, string territoryId, string factionId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(territoryId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(factionId);
+
+        return Update(gameId, snapshot =>
+        {
+            var territories = snapshot.Territories
+                .Select(territory => territory.Id == territoryId
+                    ? territory with { OwnerFactionId = factionId }
+                    : territory)
+                .ToList();
+            var armies = snapshot.Armies
+                .Where(army => army.TerritoryId != territoryId || army.FactionId != factionId)
+                .Append(new MatchArmyDto(
+                    Id: $"army-{factionId}-{territoryId}",
+                    FactionId: factionId,
+                    TerritoryId: territoryId,
+                    Strength: 100))
+                .ToList();
+            var resources = CreateResources(snapshot.Factions, territories);
+            var leaderboard = MapControlCalculator.CalculateLeaderboard(
+                territories.Select(territory => new ControlledTerritory(
+                    territory.Id,
+                    territory.OwnerFactionId,
+                    territory.AreaSquareKm,
+                    territory.Stats)).ToArray(),
+                snapshot.Factions.Select(faction => new FactionStanding(
+                    faction.Id,
+                    faction.Name,
+                    EliminationCount: 0)).ToArray(),
+                armies.Select(army => new ControlledArmy(army.FactionId, army.Strength)).ToArray(),
+                snapshot.Routes.Select(route => new ConnectedRoute(
+                    route.SourceTerritoryId,
+                    route.DestinationTerritoryId,
+                    route.IsAllowed)).ToArray(),
+                resources.ToDictionary(resource => resource.FactionId, resource => resource.Revenue, StringComparer.Ordinal));
+
+            return snapshot with
+            {
+                Territories = territories,
+                Armies = armies,
+                Leaderboard = leaderboard,
+                Resources = resources
+            };
+        });
+    }
+
     public void Invalidate(string gameId)
     {
         var normalizedId = NormalizeGameId(gameId);
@@ -224,6 +273,17 @@ public sealed class CardiffMatchStateService
         Armies: snapshot.Armies,
         Factions: snapshot.Factions,
         Routes: snapshot.Routes);
+
+    private static IReadOnlyList<MatchFactionResourceDto> CreateResources(
+        IReadOnlyList<MatchFactionDto> factions,
+        IReadOnlyList<MatchTerritoryDto> territories) =>
+        factions
+            .Select(faction => new MatchFactionResourceDto(
+                faction.Id,
+                territories
+                    .Where(territory => territory.OwnerFactionId == faction.Id)
+                    .Sum(territory => territory.Stats.Economy)))
+            .ToList();
 
     private static string NormalizeGameId(string gameId) =>
         string.Equals(gameId, "cardiff", StringComparison.OrdinalIgnoreCase)
